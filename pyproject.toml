@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-hygiene"
+version = "0.1.0"
+description = "Fast repo hygiene checks for AI coding agents, AGENTS.md, MCP configs, and agentic CI workflows."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "agent-hygiene contributors" }]
+keywords = [
+  "ai-agents",
+  "agents-md",
+  "claude",
+  "codex",
+  "mcp",
+  "security",
+  "sarif",
+  "github-actions"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance"
+]
+
+[project.urls]
+Homepage = "https://github.com/Yuki9814/agent-hygiene"
+Issues = "https://github.com/Yuki9814/agent-hygiene/issues"
+
+[project.scripts]
+agent-hygiene = "agent_hygiene.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

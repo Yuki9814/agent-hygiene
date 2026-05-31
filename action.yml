@@ -1,0 +1,50 @@
+name: agent-hygiene
+description: Scan agent instruction files, MCP configs, and agentic workflows.
+author: agent-hygiene contributors
+
+inputs:
+  path:
+    description: Path to scan.
+    required: false
+    default: "."
+  min-score:
+    description: Minimum hygiene score required to pass.
+    required: false
+    default: "85"
+  fail-on:
+    description: Lowest severity that fails the run. Use none, low, medium, high, or critical.
+    required: false
+    default: high
+  sarif:
+    description: Optional SARIF output path.
+    required: false
+    default: ""
+  baseline:
+    description: Optional agent-hygiene baseline path.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install agent-hygiene
+      shell: bash
+      run: python -m pip install "$GITHUB_ACTION_PATH"
+    - name: Scan agent surfaces
+      shell: bash
+      run: |
+        BASELINE_ARGS=()
+        if [ -n "${{ inputs.baseline }}" ]; then
+          BASELINE_ARGS+=(--baseline "${{ inputs.baseline }}")
+        fi
+        if [ -n "${{ inputs.sarif }}" ]; then
+          agent-hygiene scan "${{ inputs.path }}" \
+            --format sarif \
+            --output "${{ inputs.sarif }}" \
+            --fail-on none \
+            "${BASELINE_ARGS[@]}"
+        fi
+        agent-hygiene scan "${{ inputs.path }}" \
+          --min-score "${{ inputs.min-score }}" \
+          --fail-on "${{ inputs.fail-on }}" \
+          "${BASELINE_ARGS[@]}"
