@@ -30,6 +30,20 @@ class Document:
 
 
 @dataclass(frozen=True)
+class DiscoveryIssue:
+    path: str
+    reason: str
+    message: str
+
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "path": self.path,
+            "reason": self.reason,
+            "message": self.message,
+        }
+
+
+@dataclass(frozen=True)
 class Finding:
     rule_id: str
     title: str
@@ -45,6 +59,7 @@ class Finding:
             [
                 self.rule_id,
                 self.path,
+                str(self.line),
                 self.message,
                 self.evidence or "",
             ]
@@ -77,6 +92,8 @@ class ScanSummary:
     score: int
     status: str
     counts: Dict[str, int] = field(default_factory=dict)
+    complete: bool = True
+    discovery_issues: List[DiscoveryIssue] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -88,6 +105,8 @@ class ScanSummary:
             "score": self.score,
             "status": self.status,
             "counts": self.counts,
+            "complete": self.complete,
+            "discovery_issues": [issue.to_dict() for issue in self.discovery_issues],
         }
 
 

@@ -25,6 +25,11 @@ def render_text(result: ScanResult) -> str:
         _count_line(summary.counts),
     ]
 
+    if not summary.complete:
+        lines.append(f"scan incomplete: {len(summary.discovery_issues)} file(s) skipped or truncated")
+        for issue in summary.discovery_issues:
+            lines.append(f"  {issue.path}: {issue.message}")
+
     if not result.findings:
         lines.append("no findings")
         return "\n".join(lines) + "\n"
@@ -52,8 +57,15 @@ def render_markdown(result: ScanResult) -> str:
         f"- MCP configs: {summary.mcp_configs}",
         f"- Workflows: {summary.workflows}",
         f"- Findings: {_count_line(summary.counts)}",
+        f"- Scan complete: {'yes' if summary.complete else 'no'}",
         "",
     ]
+
+    if not summary.complete:
+        lines.extend(["## Discovery issues", ""])
+        for issue in summary.discovery_issues:
+            lines.append(f"- `{issue.path}` ({issue.reason}): {issue.message}")
+        lines.append("")
 
     if not result.findings:
         lines.append("No findings.")
@@ -99,8 +111,16 @@ def render_sarif(result: ScanResult) -> str:
                 },
                 "invocations": [
                     {
-                        "executionSuccessful": True,
+                        "executionSuccessful": result.summary.complete,
                         "endTimeUtc": datetime.now(timezone.utc).isoformat(),
+                        "toolExecutionNotifications": [
+                            {
+                                "level": "error",
+                                "message": {"text": f"{issue.path}: {issue.message}"},
+                                "descriptor": {"id": f"discovery/{issue.reason}"},
+                            }
+                            for issue in result.summary.discovery_issues
+                        ],
                     }
                 ],
                 "results": [_sarif_result(finding) for finding in result.findings],
@@ -116,6 +136,8 @@ def render_sarif(result: ScanResult) -> str:
 
 
 def should_fail(result: ScanResult, min_score: int, fail_on: str) -> bool:
+    if not result.summary.complete:
+        return True
     if result.summary.score < min_score:
         return True
     if fail_on == "none":
@@ -151,8 +173,7 @@ def _sarif_result(finding: Finding) -> Dict[str, object]:
             }
         ],
     }
-    if finding.evidence:
-        result["partialFingerprints"] = {"evidence": finding.evidence}
+    result["partialFingerprints"] = {"agentHygieneFingerprint/v1": finding.fingerprint()}
     return result
 
 

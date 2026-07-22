@@ -91,6 +91,8 @@ def run_scan(args: argparse.Namespace) -> int:
     elif not args.quiet or result.findings:
         print(text, end="")
 
+    if not result.summary.complete:
+        return 2
     return 1 if should_fail(result, min_score, fail_on) else 0
 
 
@@ -115,6 +117,9 @@ def run_baseline(args: argparse.Namespace) -> int:
         return 2
     config = load_config(root)
     result = scan(root, config, use_baseline=False)
+    if not result.summary.complete:
+        print("agent-hygiene: refusing to create a baseline from an incomplete scan", file=sys.stderr)
+        return 2
     text = render_baseline(result.findings)
     try:
         write_output(text, args.output)

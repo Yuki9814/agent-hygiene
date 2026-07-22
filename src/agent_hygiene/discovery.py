@@ -1,7 +1,9 @@
+from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
-from .models import Document
+from .models import DiscoveryIssue, Document
 
 
 INSTRUCTION_NAMES = {
@@ -23,29 +25,60 @@ MCP_NAMES = {
 MAX_FILE_BYTES = 512 * 1024
 
 
-def discover(root: Path, excludes: Sequence[str]) -> List[Document]:
+@dataclass(frozen=True)
+class DiscoveryResult:
+    documents: List[Document]
+    issues: List[DiscoveryIssue]
+
+
+def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
     root = root.resolve()
     docs: List[Document] = []
+    issues: List[DiscoveryIssue] = []
     for path in sorted(_walk(root, excludes)):
         kind = classify(root, path)
         if kind is None:
             continue
+        relative_path = path.relative_to(root).as_posix()
+        if path.is_symlink():
+            issues.append(
+                DiscoveryIssue(
+                    path=relative_path,
+                    reason="symlink",
+                    message="Skipped symbolic link; scan the target explicitly if it is trusted.",
+                )
+            )
+            continue
         try:
             if path.stat().st_size > MAX_FILE_BYTES:
                 text = path.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_BYTES]
+                issues.append(
+                    DiscoveryIssue(
+                        path=relative_path,
+                        reason="file_too_large",
+                        message=f"Scanned only the first {MAX_FILE_BYTES} characters.",
+                    )
+                )
             else:
                 text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        except OSError as exc:
+            issues.append(
+                DiscoveryIssue(
+                    path=relative_path,
+                    reason="read_error",
+                    message=f"Could not read file: {exc.__class__.__name__}.",
+                )
+            )
             continue
         docs.append(
             Document(
                 path=path,
-                relative_path=path.relative_to(root).as_posix(),
+                relative_path=relative_path,
                 kind=kind,
                 text=text,
             )
         )
-    return docs
+    return DiscoveryResult(documents=docs, issues=issues)
 
 
 def classify(root: Path, path: Path) -> str:
@@ -79,10 +112,11 @@ def classify(root: Path, path: Path) -> str:
 
 def _walk(root: Path, excludes: Sequence[str]) -> Iterable[Path]:
     exclude_set = set(excludes)
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        parts = set(path.relative_to(root).parts)
-        if parts.intersection(exclude_set):
-            continue
-        yield path
+    for directory, dirnames, filenames in os.walk(root, followlinks=False):
+        directory_path = Path(directory)
+        dirnames[:] = sorted(name for name in dirnames if name not in exclude_set)
+        for filename in sorted(filenames):
+            path = directory_path / filename
+            parts = set(path.relative_to(root).parts)
+            if not parts.intersection(exclude_set):
+                yield path

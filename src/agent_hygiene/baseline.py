@@ -5,7 +5,7 @@ from typing import Iterable, Set
 from .models import Finding
 
 
-BASELINE_VERSION = 1
+BASELINE_VERSION = 2
 
 
 def baseline_path(root: Path, configured_path: str) -> Path:
