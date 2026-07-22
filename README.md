@@ -53,7 +53,12 @@ Exit codes:
 
 - `0`: score and severity gate passed
 - `1`: findings exceeded `--fail-on` or score fell below `--min-score`
-- `2`: invalid CLI usage or unreadable output path
+- `2`: invalid usage, unreadable output, or an incomplete scan
+
+The scanner fails closed. Symlinked, unreadable, or oversized agent-controlled
+files make the result `incomplete`; they never produce a passing `ready` status
+or a successful SARIF invocation. This distinguishes a clean scan from a scan
+that could not inspect all relevant inputs.
 
 ## GitHub Action
 
@@ -195,6 +200,12 @@ More detail lives in [docs/rules.md](docs/rules.md).
 - readable output for humans, SARIF for CI
 - conservative findings with practical remediation text
 - no LLM API required
+
+## Maintenance and releases
+
+Compatibility is tested on Python 3.9 through 3.13. Releases follow semantic
+versioning and publish source and wheel artifacts on GitHub. Security-sensitive
+reports can be submitted privately using the process in [SECURITY.md](SECURITY.md).
 
 ## Roadmap
 

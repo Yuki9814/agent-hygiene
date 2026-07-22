@@ -1,0 +1,24 @@
+name: Bug report
+description: Report a reproducible scanner, CLI, or reporter defect.
+title: "bug: "
+labels: [bug]
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide a sanitized fixture and the command you ran.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: agent-hygiene version
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true

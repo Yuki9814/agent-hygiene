@@ -12,7 +12,8 @@ from .rules import repository_rules, scan_document
 
 def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
     root = root.resolve()
-    docs = discover(root, config.exclude)
+    discovery = discover(root, config.exclude)
+    docs = discovery.documents
     docs_by_path = {doc.relative_path: doc for doc in docs}
     findings: List[Finding] = []
 
@@ -30,8 +31,10 @@ def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
         mcp_configs=sum(1 for doc in docs if doc.kind == "mcp"),
         workflows=sum(1 for doc in docs if doc.kind == "workflow"),
         score=score,
-        status=_status(score),
+        status=_status(score) if not discovery.issues else "incomplete",
         counts=count_by_severity(findings),
+        complete=not discovery.issues,
+        discovery_issues=discovery.issues,
     )
     return ScanResult(summary=summary, findings=findings)
 
