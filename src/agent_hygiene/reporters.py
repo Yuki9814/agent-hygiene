@@ -1,8 +1,10 @@
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
+from . import __version__
 from .models import SEVERITY_ORDER, Finding, ScanResult
 from .rules import RULES
 
@@ -28,7 +30,7 @@ def render_text(result: ScanResult) -> str:
     if not summary.complete:
         lines.append(f"scan incomplete: {len(summary.discovery_issues)} file(s) skipped or truncated")
         for issue in summary.discovery_issues:
-            lines.append(f"  {issue.path}: {issue.message}")
+            lines.append(f"  {_human_text(issue.path)}: {_human_text(issue.message)}")
 
     if not result.findings:
         lines.append("no findings")
@@ -36,11 +38,14 @@ def render_text(result: ScanResult) -> str:
 
     lines.append("")
     for finding in result.findings:
-        lines.append(f"{finding.severity.upper()} {finding.rule_id} {finding.path}:{finding.line}")
-        lines.append(f"  {finding.message}")
+        lines.append(
+            f"{finding.severity.upper()} {finding.rule_id} "
+            f"{_human_text(finding.path)}:{finding.line}"
+        )
+        lines.append(f"  {_human_text(finding.message)}")
         if finding.evidence:
-            lines.append(f"  Evidence: {finding.evidence}")
-        lines.append(f"  Fix: {finding.remediation}")
+            lines.append(f"  Evidence: {_human_text(finding.evidence)}")
+        lines.append(f"  Fix: {_human_text(finding.remediation)}")
         lines.append("")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -64,7 +69,10 @@ def render_markdown(result: ScanResult) -> str:
     if not summary.complete:
         lines.extend(["## Discovery issues", ""])
         for issue in summary.discovery_issues:
-            lines.append(f"- `{issue.path}` ({issue.reason}): {issue.message}")
+            lines.append(
+                f"- `{_markdown_code(issue.path)}` "
+                f"({_human_text(issue.reason)}): {_human_text(issue.message)}"
+            )
         lines.append("")
 
     if not result.findings:
@@ -73,8 +81,11 @@ def render_markdown(result: ScanResult) -> str:
 
     lines.extend(["| Severity | Rule | Location | Finding |", "| --- | --- | --- | --- |"])
     for finding in result.findings:
-        location = f"`{finding.path}:{finding.line}`"
-        message = _escape_table(f"{finding.message} Fix: {finding.remediation}")
+        location = f"`{_markdown_code(finding.path)}:{finding.line}`"
+        message = _escape_table(
+            f"{_human_text(finding.message)} "
+            f"Fix: {_human_text(finding.remediation)}"
+        )
         lines.append(f"| {finding.severity} | {finding.rule_id} | {location} | {message} |")
     return "\n".join(lines) + "\n"
 
@@ -105,6 +116,8 @@ def render_sarif(result: ScanResult) -> str:
                 "tool": {
                     "driver": {
                         "name": "agent-hygiene",
+                        "version": __version__,
+                        "semanticVersion": __version__,
                         "informationUri": "https://github.com/Yuki9814/agent-hygiene",
                         "rules": rules,
                     }
@@ -128,6 +141,11 @@ def render_sarif(result: ScanResult) -> str:
                     "score": result.summary.score,
                     "status": result.summary.status,
                     "counts": result.summary.counts,
+                    **(
+                        {"scopeFingerprint": result.summary.scope_fingerprint}
+                        if result.summary.scope_fingerprint
+                        else {}
+                    ),
                 },
             }
         ],
@@ -159,6 +177,19 @@ def _escape_table(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
 
 
+def _human_text(value: str) -> str:
+    def replace_control(match: re.Match) -> str:
+        character = match.group(0)
+        escapes = {"\n": "\\n", "\r": "\\r", "\t": "\\t"}
+        return escapes.get(character, f"\\x{ord(character):02x}")
+
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]", replace_control, value)
+
+
+def _markdown_code(value: str) -> str:
+    return _human_text(value).replace("`", "\\`")
+
+
 def _sarif_result(finding: Finding) -> Dict[str, object]:
     result: Dict[str, object] = {
         "ruleId": finding.rule_id,
@@ -174,6 +205,10 @@ def _sarif_result(finding: Finding) -> Dict[str, object]:
         ],
     }
     result["partialFingerprints"] = {"agentHygieneFingerprint/v1": finding.fingerprint()}
+    result["properties"] = {
+        "severity": finding.severity,
+        "remediation": finding.remediation,
+    }
     return result
 
 

@@ -1,0 +1,40 @@
+name: False positive
+description: Report a safe construct that a rule flags.
+title: "false-positive: "
+labels: [bug]
+body:
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID
+      placeholder: AH006
+    validations:
+      required: true
+  - type: textarea
+    id: fixture
+    attributes:
+      label: Minimal synthetic fixture
+      description: Preserve the relevant syntax but remove all private content and credentials.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Why this construct is safe
+      description: Explain the trust boundary and expected scanner result.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: agent-hygiene version
+    validations:
+      required: true
+  - type: checkboxes
+    id: sanitized
+    attributes:
+      label: Fixture safety
+      options:
+        - label: I replaced all secrets and private content with synthetic values.
+          required: true

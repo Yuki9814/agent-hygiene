@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, List
 
+from .safe_json import JSONSafetyError, read_bounded_json
+
 
 DEFAULT_EXCLUDES = [
     ".git",
@@ -21,6 +23,14 @@ DEFAULT_EXCLUDES = [
     ".ruff_cache",
 ]
 
+MAX_CONFIG_BYTES = 1024 * 1024
+MAX_LIST_ITEMS = 1000
+MAX_PATTERN_LENGTH = 256
+
+
+class ConfigError(ValueError):
+    """Raised when repository policy configuration is unsafe or invalid."""
+
 
 @dataclass(frozen=True)
 class Config:
@@ -34,13 +44,17 @@ class Config:
 
 def load_config(root: Path) -> Config:
     config_path = root / ".agent-hygiene.json"
+    if config_path.is_symlink():
+        raise ConfigError("configuration must not be a symbolic link")
     if not config_path.exists():
         return Config()
 
     try:
-        data = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return Config()
+        data = read_bounded_json(config_path, MAX_CONFIG_BYTES)
+    except JSONSafetyError as exc:
+        raise ConfigError(f"configuration {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError("configuration root must be a JSON object")
 
     exclude = data.get("exclude", DEFAULT_EXCLUDES)
     ignore = data.get("ignore", [])
@@ -49,15 +63,16 @@ def load_config(root: Path) -> Config:
     min_score = data.get("min_score", 85)
     fail_on = data.get("fail_on", "high")
 
-    if not isinstance(exclude, list) or not all(isinstance(item, str) for item in exclude):
-        exclude = DEFAULT_EXCLUDES
-    if not isinstance(ignore, list) or not all(isinstance(item, str) for item in ignore):
-        ignore = []
-    if not isinstance(ignore_rules, list) or not all(isinstance(item, str) for item in ignore_rules):
-        ignore_rules = []
+    exclude = _string_list(exclude, "exclude", DEFAULT_EXCLUDES)
+    ignore = _string_list(ignore, "ignore", [])
+    ignore_rules = _string_list(ignore_rules, "ignore_rules", [])
     if baseline is not None and not isinstance(baseline, str):
         baseline = ".agent-hygiene-baseline.json"
-    if not isinstance(min_score, int):
+    if (
+        isinstance(min_score, bool)
+        or not isinstance(min_score, int)
+        or not 0 <= min_score <= 100
+    ):
         min_score = 85
     if fail_on not in {"none", "low", "medium", "high", "critical"}:
         fail_on = "high"
@@ -70,6 +85,21 @@ def load_config(root: Path) -> Config:
         min_score=min_score,
         fail_on=fail_on,
     )
+
+
+def _string_list(value: object, label: str, default: List[str]) -> List[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return list(default)
+    if len(value) > MAX_LIST_ITEMS:
+        raise ConfigError(f"{label} cannot contain more than {MAX_LIST_ITEMS} entries")
+    if any(
+        len(item) > MAX_PATTERN_LENGTH or "\0" in item or "\n" in item or "\r" in item
+        for item in value
+    ):
+        raise ConfigError(
+            f"{label} entries must be at most {MAX_PATTERN_LENGTH} safe characters"
+        )
+    return list(value)
 
 
 def default_config_text() -> str:

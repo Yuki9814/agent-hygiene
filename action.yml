@@ -27,24 +27,46 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Validate action inputs
+      id: validate
+      shell: bash
+      env:
+        AGENT_HYGIENE_INPUT_PATH: ${{ inputs.path }}
+        AGENT_HYGIENE_INPUT_MIN_SCORE: ${{ inputs.min-score }}
+        AGENT_HYGIENE_INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        AGENT_HYGIENE_INPUT_SARIF: ${{ inputs.sarif }}
+        AGENT_HYGIENE_INPUT_BASELINE: ${{ inputs.baseline }}
+      run: python -I "$GITHUB_ACTION_PATH/tools/validate_action_inputs.py" "$GITHUB_OUTPUT"
     - name: Install agent-hygiene
       shell: bash
-      run: python -m pip install "$GITHUB_ACTION_PATH"
+      run: python -I -m pip install "$GITHUB_ACTION_PATH"
     - name: Scan agent surfaces
       shell: bash
+      env:
+        AGENT_HYGIENE_PATH: ${{ steps.validate.outputs.path }}
+        AGENT_HYGIENE_MIN_SCORE: ${{ steps.validate.outputs.min_score }}
+        AGENT_HYGIENE_FAIL_ON: ${{ steps.validate.outputs.fail_on }}
+        AGENT_HYGIENE_SARIF: ${{ steps.validate.outputs.sarif }}
+        AGENT_HYGIENE_BASELINE: ${{ steps.validate.outputs.baseline }}
       run: |
+        set -euo pipefail
         BASELINE_ARGS=()
-        if [ -n "${{ inputs.baseline }}" ]; then
-          BASELINE_ARGS+=(--baseline "${{ inputs.baseline }}")
+        if [ -n "$AGENT_HYGIENE_BASELINE" ]; then
+          BASELINE_ARGS+=(--baseline "$AGENT_HYGIENE_BASELINE")
         fi
-        if [ -n "${{ inputs.sarif }}" ]; then
-          agent-hygiene scan "${{ inputs.path }}" \
+        if [ -n "$AGENT_HYGIENE_SARIF" ]; then
+          agent-hygiene scan "$AGENT_HYGIENE_PATH" \
             --format sarif \
-            --output "${{ inputs.sarif }}" \
+            --output "$AGENT_HYGIENE_SARIF" \
+            --min-score 0 \
             --fail-on none \
             "${BASELINE_ARGS[@]}"
         fi
-        agent-hygiene scan "${{ inputs.path }}" \
-          --min-score "${{ inputs.min-score }}" \
-          --fail-on "${{ inputs.fail-on }}" \
+        agent-hygiene scan "$AGENT_HYGIENE_PATH" \
+          --min-score "$AGENT_HYGIENE_MIN_SCORE" \
+          --fail-on "$AGENT_HYGIENE_FAIL_ON" \
           "${BASELINE_ARGS[@]}"
+
+branding:
+  icon: shield
+  color: blue

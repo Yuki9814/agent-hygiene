@@ -3,6 +3,10 @@ description: Report a reproducible scanner, CLI, or reporter defect.
 title: "bug: "
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include live credentials, private prompts, or confidential repository content.
   - type: textarea
     id: reproduction
     attributes:
@@ -22,3 +26,29 @@ body:
       label: Expected and actual result
     validations:
       required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command and output format
+      description: Include flags, exit code, and whether JSON or SARIF was requested.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation source
+      options:
+        - GitHub release wheel
+        - Source checkout
+        - GitHub Action
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Fixture safety
+      options:
+        - label: I replaced all secrets and private content with synthetic values.
+          required: true

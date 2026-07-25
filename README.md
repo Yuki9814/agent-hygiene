@@ -7,18 +7,33 @@ repository: `AGENTS.md`, `CLAUDE.md`, Cursor rules, Copilot instructions, MCP
 JSON configs, and GitHub Actions workflows that trigger agentic work.
 
 It is built for one job: make agent-ready repositories safer to trust, easier
-to audit, and boring to run in CI.
+to audit, and predictable to run in CI.
+
+## Install
+
+`agent-hygiene` is not currently published on PyPI. Install the latest
+published GitHub wheel:
 
 ```bash
-python -m pip install agent-hygiene
+python -m pip install \
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.3.0/agent_hygiene-0.3.0-py3-none-any.whl
 agent-hygiene scan .
 ```
 
-For this source checkout:
+Or install and run a source checkout:
 
 ```bash
+git clone https://github.com/Yuki9814/agent-hygiene.git
+cd agent-hygiene
+python -m pip install .
+agent-hygiene scan .
+
+# Without installing:
 PYTHONPATH=src python -m agent_hygiene scan .
 ```
+
+Published wheels and source distributions are listed on the
+[GitHub Releases](https://github.com/Yuki9814/agent-hygiene/releases) page.
 
 ## Why this should exist
 
@@ -60,6 +75,11 @@ files make the result `incomplete`; they never produce a passing `ready` status
 or a successful SARIF invocation. This distinguishes a clean scan from a scan
 that could not inspect all relevant inputs.
 
+Repository configuration and baselines are treated as untrusted policy inputs:
+they must be bounded regular files, remain inside the scanned repository, and
+contain strict JSON. An unsafe configuration exits with code `2`; an unsafe
+baseline is reported as an incomplete scan and is never used for suppression.
+
 ## GitHub Action
 
 ```yaml
@@ -77,18 +97,24 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: Yuki9814/agent-hygiene@v0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Pin an existing release. Review release notes before upgrading.
+      - uses: Yuki9814/agent-hygiene@v0.3.0
         with:
           min-score: "85"
           fail-on: high
           sarif: agent-hygiene.sarif
           baseline: .agent-hygiene-baseline.json
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
         if: always()
         with:
           sarif_file: agent-hygiene.sarif
 ```
+
+Treat `.agent-hygiene.json`, baselines, inline suppressions, and the workflow as
+policy code: a pull request can propose changes to them. This repository's
+`CODEOWNERS` marks trust-boundary files for maintainer review, but branch rules
+must require that review for enforcement.
 
 ## What gets scanned
 
@@ -137,6 +163,7 @@ agent-hygiene scan [path]
 agent-hygiene init [path]
 agent-hygiene baseline [path] --output .agent-hygiene-baseline.json
 agent-hygiene explain RULE_ID
+agent-hygiene evaluate MANIFEST [--format text|json]
 ```
 
 ## Config
@@ -193,6 +220,39 @@ agent-hygiene scan . --baseline .agent-hygiene-baseline.json --fail-on high
 
 More detail lives in [docs/rules.md](docs/rules.md).
 
+## Auditable evaluation
+
+The repository includes a synthetic, versioned corpus with positive and
+negative fixtures. The evaluator copies each fixture into an isolated temporary
+repository, compares findings by rule, relative path, and line, then enforces
+declared precision and recall gates:
+
+```bash
+PYTHONPATH=src python -m agent_hygiene evaluate tests/corpus/manifest.json
+```
+
+The v0.3.0 corpus snapshot has 18 cases and 13 expected findings. It currently
+reports 13 true positives, 0 false positives, and 0 false negatives against
+gates of 0.95 precision and 0.90 recall. These are seeded regression fixtures,
+not a claim about performance on independent real-world repositories. The
+methodology and manifest contract are documented in
+[docs/evaluation.md](docs/evaluation.md).
+
+## Machine-readable contracts
+
+JSON scan output keeps the existing `summary` and `findings` fields and adds
+`schema_version: 1` plus tool name and version metadata. Finding paths remain
+repository-relative. When a GitHub repository identity or safe Git origin is
+available, JSON and SARIF include the same scope fingerprint so consumers can
+reconcile formats across checkout locations without encoding the absolute scan
+root. SARIF remains version 2.1.0, retains
+`agentHygieneFingerprint/v1`, and includes the tool version, severity, and
+remediation properties.
+
+Evidence is redacted before output and fingerprinting. Upgrading from an older
+release can therefore change the fingerprint of a finding whose evidence
+contained credential-like text; review and regenerate that baseline entry.
+
 ## Design goals
 
 - zero runtime dependencies
@@ -207,11 +267,10 @@ Compatibility is tested on Python 3.9 through 3.13. Releases follow semantic
 versioning and publish source and wheel artifacts on GitHub. Security-sensitive
 reports can be submitted privately using the process in [SECURITY.md](SECURITY.md).
 
-## Roadmap
-
-- repository-specific rule packs
-- autofix for stale paths and generated instruction headers
-- reusable score badge endpoint
+Project ownership and release responsibilities are recorded in
+[MAINTAINERS.md](MAINTAINERS.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for
+rule-change requirements, [SUPPORT.md](SUPPORT.md) for support boundaries, and
+[ROADMAP.md](ROADMAP.md) for the next evidence gates.
 
 ## License
 

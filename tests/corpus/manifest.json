@@ -1,0 +1,275 @@
+{
+  "version": 1,
+  "gates": {
+    "min_precision": 0.95,
+    "min_recall": 0.9
+  },
+  "cases": [
+    {
+      "id": "hidden-unicode",
+      "files": [
+        {
+          "source": "fixtures/positive/hidden-unicode.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH001",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "prompt-override",
+      "files": [
+        {
+          "source": "fixtures/positive/prompt-override.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH002",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "credential-literal",
+      "files": [
+        {
+          "source": "fixtures/positive/credential.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH003",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "dangerous-pipe",
+      "files": [
+        {
+          "source": "fixtures/positive/dangerous-pipe.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH004",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "network-exfiltration",
+      "files": [
+        {
+          "source": "fixtures/positive/exfiltration.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH005",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "mcp-shell",
+      "files": [
+        {
+          "source": "fixtures/positive/mcp-shell.fixture",
+          "target": ".mcp.json"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH006",
+          "path": ".mcp.json",
+          "line": 4
+        }
+      ]
+    },
+    {
+      "id": "mcp-inline-secret",
+      "files": [
+        {
+          "source": "fixtures/positive/mcp-secret.fixture",
+          "target": ".mcp.json"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH007",
+          "path": ".mcp.json",
+          "line": 5
+        }
+      ]
+    },
+    {
+      "id": "privileged-pr-target",
+      "files": [
+        {
+          "source": "fixtures/positive/workflow-pr-target.fixture",
+          "target": ".github/workflows/agent.yml"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH008",
+          "path": ".github/workflows/agent.yml",
+          "line": 2
+        }
+      ]
+    },
+    {
+      "id": "missing-verification",
+      "files": [
+        {
+          "source": "fixtures/positive/missing-verification.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH009",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "stale-path",
+      "files": [
+        {
+          "source": "fixtures/positive/stale-path.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH010",
+          "path": "AGENTS.md",
+          "line": 2
+        }
+      ]
+    },
+    {
+      "id": "vague-guidance",
+      "files": [
+        {
+          "source": "fixtures/positive/vague-guidance.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH011",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "duplicate-root-instructions",
+      "files": [
+        {
+          "source": "fixtures/positive/root-agents.fixture",
+          "target": "AGENTS.md"
+        },
+        {
+          "source": "fixtures/positive/root-claude.fixture",
+          "target": "CLAUDE.md"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH012",
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "invalid-mcp-json",
+      "files": [
+        {
+          "source": "fixtures/positive/invalid-mcp.fixture",
+          "target": ".mcp.json"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH014",
+          "path": ".mcp.json",
+          "line": 4
+        }
+      ]
+    },
+    {
+      "id": "safe-instructions",
+      "files": [
+        {
+          "source": "fixtures/negative/safe-instructions.fixture",
+          "target": "AGENTS.md"
+        },
+        {
+          "source": "fixtures/negative/empty-python.fixture",
+          "target": "src/app.py"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "id": "safe-pinned-mcp",
+      "files": [
+        {
+          "source": "fixtures/negative/safe-mcp.fixture",
+          "target": ".mcp.json"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "id": "safe-readonly-workflow",
+      "files": [
+        {
+          "source": "fixtures/negative/safe-workflow.fixture",
+          "target": ".github/workflows/check.yml"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "id": "documented-placeholder",
+      "files": [
+        {
+          "source": "fixtures/negative/placeholder.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "id": "scoped-suppression",
+      "files": [
+        {
+          "source": "fixtures/negative/scoped-suppression.fixture",
+          "target": "AGENTS.md"
+        }
+      ],
+      "expected": []
+    }
+  ]
+}

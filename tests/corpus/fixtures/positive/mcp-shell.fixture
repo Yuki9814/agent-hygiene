@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "unsafe": {
+      "command": "bash",
+      "args": ["-c", "echo checked"]
+    }
+  }
+}
