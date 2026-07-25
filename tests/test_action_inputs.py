@@ -161,6 +161,7 @@ class ActionInputTests(unittest.TestCase):
         self.assertIn("contents: write", release_job)
         self.assertNotIn("actions/checkout", release_job)
         self.assertNotIn("python ", release_job)
+        self.assertIn('--repo "$GITHUB_REPOSITORY"', release_job)
 
 
 if __name__ == "__main__":

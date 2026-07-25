@@ -94,6 +94,7 @@ jobs:
             "dist/agent_hygiene-${version}-py3-none-any.whl" \
             "dist/agent_hygiene-${version}.tar.gz" \
             "dist/SHA256SUMS" \
+            --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "$RELEASE_TAG" \
             --generate-notes
