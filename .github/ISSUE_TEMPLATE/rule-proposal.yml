@@ -1,0 +1,40 @@
+name: Rule proposal
+description: Propose a deterministic check with risky and safe examples.
+title: "rule: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Trust boundary
+      description: What agent-controlled surface and failure mode should the rule cover?
+    validations:
+      required: true
+  - type: textarea
+    id: risky
+    attributes:
+      label: Minimal risky fixture
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: safe
+    attributes:
+      label: Nearby safe fixture
+      description: Show the most likely false positive that must remain unflagged.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Actionable remediation
+    validations:
+      required: true
+  - type: checkboxes
+    id: sanitized
+    attributes:
+      label: Fixture safety
+      options:
+        - label: Both fixtures are synthetic and contain no private data or live credentials.
+          required: true

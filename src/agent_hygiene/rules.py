@@ -1,10 +1,11 @@
-import json
 import re
 import unicodedata
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
 from .models import Document, Finding
+from .redaction import redact_secrets
+from .safe_json import JSONSafetyError, strict_json_loads
 
 
 RULES: Dict[str, Dict[str, str]] = {
@@ -121,7 +122,8 @@ DANGEROUS_COMMAND_PATTERNS = [
 ]
 
 EXFIL_PATTERN = re.compile(
-    r"\b(curl|wget|nc|netcat|scp|rsync|aws\s+s3\s+cp)\b.{0,120}\b(\.env|\.ssh|id_rsa|token|secret|password|/etc/passwd|HOME)\b",
+    r"\b(curl|wget|nc|netcat|scp|rsync|aws\s+s3\s+cp)\b.{0,120}"
+    r"(?:\.env\b|\.ssh\b|id_rsa\b|token\b|secret\b|password\b|/etc/passwd\b|HOME\b)",
     re.IGNORECASE,
 )
 
@@ -333,16 +335,27 @@ def instruction_quality(doc: Document, root: Path) -> Iterator[Finding]:
 
 def mcp_config(doc: Document) -> Iterator[Finding]:
     try:
-        data = json.loads(doc.text)
-    except json.JSONDecodeError as exc:
+        data = strict_json_loads(doc.text)
+    except JSONSafetyError as exc:
         yield finding(
             "AH014",
             "medium",
             doc.relative_path,
-            exc.lineno,
+            exc.line or 1,
             "MCP config is not valid JSON.",
             "Fix the JSON syntax so clients read the intended configuration.",
-            evidence=exc.msg,
+            evidence=str(exc),
+        )
+        return
+    if not isinstance(data, dict):
+        yield finding(
+            "AH014",
+            "medium",
+            doc.relative_path,
+            1,
+            "MCP config root is not a JSON object.",
+            "Use an object containing mcpServers, servers, or a server command.",
+            evidence="unsupported JSON root",
         )
         return
 
@@ -420,7 +433,9 @@ def workflow_risks(doc: Document) -> Iterator[Finding]:
     lower = text.lower()
     has_write = bool(re.search(r"permissions:\s*write-all|contents:\s*write|pull-requests:\s*write|issues:\s*write", lower))
     uses_secrets = "secrets." in lower or "${{ secrets" in lower
-    has_agent_comment = bool(re.search(r"issue_comment|pull_request_review_comment|@(?:codex|claude|copilot)|\bagent\b", lower))
+    has_agent_comment = bool(
+        re.search(r"\b(issue_comment|pull_request_review_comment)\b", lower)
+    )
 
     if "pull_request_target" in lower and (has_write or uses_secrets):
         yield finding(
@@ -473,7 +488,7 @@ def finding(
         line=max(1, line),
         message=message,
         remediation=remediation,
-        evidence=evidence,
+        evidence=redact_secrets(evidence) if evidence else evidence,
     )
 
 
@@ -585,7 +600,6 @@ def _clip(value: str, limit: int = 120) -> str:
 
 
 def _redact(value: str) -> str:
-    value = _clip(value, 80)
-    if len(value) <= 10:
-        return "***"
-    return value[:4] + "***" + value[-4:]
+    clipped = _clip(value, 80)
+    redacted = redact_secrets(clipped)
+    return redacted if redacted != clipped else "<redacted-secret>"

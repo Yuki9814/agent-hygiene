@@ -3,6 +3,9 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from . import __version__
+from .redaction import redact_secrets
+
 
 SEVERITY_ORDER = {
     "info": 0,
@@ -54,6 +57,12 @@ class Finding:
     remediation: str
     evidence: Optional[str] = None
 
+    def __post_init__(self) -> None:
+        for field_name in ("title", "message", "remediation", "evidence"):
+            value = getattr(self, field_name)
+            if value:
+                object.__setattr__(self, field_name, redact_secrets(value))
+
     def fingerprint(self) -> str:
         key = "\0".join(
             [
@@ -91,12 +100,13 @@ class ScanSummary:
     workflows: int
     score: int
     status: str
+    scope_fingerprint: Optional[str] = None
     counts: Dict[str, int] = field(default_factory=dict)
     complete: bool = True
     discovery_issues: List[DiscoveryIssue] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, object]:
-        return {
+        data: Dict[str, object] = {
             "root": self.root,
             "scanned_files": self.scanned_files,
             "instruction_files": self.instruction_files,
@@ -108,6 +118,9 @@ class ScanSummary:
             "complete": self.complete,
             "discovery_issues": [issue.to_dict() for issue in self.discovery_issues],
         }
+        if self.scope_fingerprint:
+            data["scope_fingerprint"] = self.scope_fingerprint
+        return data
 
 
 @dataclass(frozen=True)
@@ -117,6 +130,11 @@ class ScanResult:
 
     def to_dict(self) -> Dict[str, object]:
         return {
+            "schema_version": 1,
+            "tool": {
+                "name": "agent-hygiene",
+                "version": __version__,
+            },
             "summary": self.summary.to_dict(),
             "findings": [finding.to_dict() for finding in self.findings],
         }

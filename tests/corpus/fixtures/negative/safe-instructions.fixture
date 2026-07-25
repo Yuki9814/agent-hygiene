@@ -1,0 +1,2 @@
+# Agent instructions
+Run `python -m unittest discover -s tests` after editing `src/app.py`.

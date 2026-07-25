@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-hygiene"
-version = "0.2.0"
+version = "0.3.0"
 description = "Fast repo hygiene checks for AI coding agents, AGENTS.md, MCP configs, and agentic CI workflows."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -34,6 +34,9 @@ classifiers = [
 [project.urls]
 Homepage = "https://github.com/Yuki9814/agent-hygiene"
 Issues = "https://github.com/Yuki9814/agent-hygiene/issues"
+Changelog = "https://github.com/Yuki9814/agent-hygiene/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/Yuki9814/agent-hygiene#readme"
+Repository = "https://github.com/Yuki9814/agent-hygiene"
 
 [project.scripts]
 agent-hygiene = "agent_hygiene.cli:main"

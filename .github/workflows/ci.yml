@@ -8,23 +8,70 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Compile source
+        run: python -m compileall -q src tools
       - name: Run unit tests
         run: PYTHONPATH=src python -m unittest discover -s tests
+
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Evaluate synthetic corpus
+        run: PYTHONPATH=src python -m agent_hygiene evaluate tests/corpus/manifest.json
       - name: Scan this repository
         run: PYTHONPATH=src python -m agent_hygiene scan . --min-score 85 --fail-on high
+
+  action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Run the action from this checkout
+        uses: ./
+        with:
+          min-score: "85"
+          fail-on: high
+
+  package:
+    needs: [test, evidence, action]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
       - name: Build distributions
-        if: matrix.python-version == '3.13'
         run: |
-          python -m pip install build
+          python -m pip install build==1.2.2.post1
           python -m build
+      - name: Smoke-test wheel
+        run: |
+          python -m venv .package-smoke
+          .package-smoke/bin/python -m pip install --no-index dist/*.whl
+          .package-smoke/bin/agent-hygiene --version

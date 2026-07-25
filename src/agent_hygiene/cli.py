@@ -5,7 +5,8 @@ from pathlib import Path
 
 from . import __version__
 from .baseline import render_baseline
-from .config import default_config_text, load_config
+from .config import ConfigError, default_config_text, load_config
+from .evaluation import EvaluationError, evaluate_manifest, render_evaluation
 from .models import SEVERITY_ORDER
 from .reporters import render, should_fail, write_output
 from .rules import RULES
@@ -24,6 +25,8 @@ def main(argv=None) -> int:
         return run_baseline(args)
     if args.command == "explain":
         return run_explain(args)
+    if args.command == "evaluate":
+        return run_evaluate(args)
 
     parser.print_help()
     return 2
@@ -41,7 +44,11 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("path", nargs="?", default=".", help="repository path to scan")
     scan_parser.add_argument("--format", choices=["text", "json", "markdown", "sarif"], default="text")
     scan_parser.add_argument("--output", help="write report to a file")
-    scan_parser.add_argument("--min-score", type=int, help="minimum passing score")
+    scan_parser.add_argument(
+        "--min-score",
+        type=_score_argument,
+        help="minimum passing score from 0 to 100",
+    )
     scan_parser.add_argument("--fail-on", choices=["none", "low", "medium", "high", "critical"], help="lowest failing severity")
     scan_parser.add_argument("--ignore-rule", action="append", default=[], help="ignore a rule id for this run")
     scan_parser.add_argument("--baseline", help="baseline file to suppress existing findings")
@@ -59,6 +66,15 @@ def build_parser() -> argparse.ArgumentParser:
     explain_parser = subparsers.add_parser("explain", help="explain a rule")
     explain_parser.add_argument("rule_id", help="rule id such as AH006")
 
+    evaluate_parser = subparsers.add_parser(
+        "evaluate",
+        help="measure precision and recall against a synthetic corpus",
+    )
+    evaluate_parser.add_argument("manifest", help="path to a version 1 corpus manifest")
+    evaluate_parser.add_argument("--format", choices=["text", "json"], default="text")
+    evaluate_parser.add_argument("--min-precision", type=float, help="override manifest precision gate")
+    evaluate_parser.add_argument("--min-recall", type=float, help="override manifest recall gate")
+
     return parser
 
 
@@ -68,7 +84,11 @@ def run_scan(args: argparse.Namespace) -> int:
         print(f"agent-hygiene: path is not a directory: {root}", file=sys.stderr)
         return 2
 
-    config = load_config(root)
+    try:
+        config = load_config(root)
+    except ConfigError as exc:
+        print(f"agent-hygiene: invalid configuration: {exc}", file=sys.stderr)
+        return 2
     min_score = args.min_score if args.min_score is not None else config.min_score
     fail_on = args.fail_on if args.fail_on is not None else config.fail_on
     config = replace(
@@ -102,6 +122,9 @@ def run_init(args: argparse.Namespace) -> int:
         print(f"agent-hygiene: path is not a directory: {root}", file=sys.stderr)
         return 2
     config_path = root / ".agent-hygiene.json"
+    if config_path.is_symlink():
+        print("agent-hygiene: refusing to replace a symlinked configuration", file=sys.stderr)
+        return 2
     if config_path.exists():
         print(f"exists {config_path}")
         return 0
@@ -115,7 +138,11 @@ def run_baseline(args: argparse.Namespace) -> int:
     if not root.exists() or not root.is_dir():
         print(f"agent-hygiene: path is not a directory: {root}", file=sys.stderr)
         return 2
-    config = load_config(root)
+    try:
+        config = load_config(root)
+    except ConfigError as exc:
+        print(f"agent-hygiene: invalid configuration: {exc}", file=sys.stderr)
+        return 2
     result = scan(root, config, use_baseline=False)
     if not result.summary.complete:
         print("agent-hygiene: refusing to create a baseline from an incomplete scan", file=sys.stderr)
@@ -142,5 +169,29 @@ def run_explain(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_evaluate(args: argparse.Namespace) -> int:
+    try:
+        result = evaluate_manifest(
+            Path(args.manifest),
+            min_precision=args.min_precision,
+            min_recall=args.min_recall,
+        )
+    except EvaluationError as exc:
+        print(f"agent-hygiene: evaluation failed: {exc}", file=sys.stderr)
+        return 2
+    print(render_evaluation(result, args.format), end="")
+    return 0 if result.passed else 1
+
+
 def severity_at_least(left: str, right: str) -> bool:
     return SEVERITY_ORDER[left] >= SEVERITY_ORDER[right]
+
+
+def _score_argument(value: str) -> int:
+    try:
+        score = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer from 0 to 100") from exc
+    if not 0 <= score <= 100:
+        raise argparse.ArgumentTypeError("must be an integer from 0 to 100")
+    return score

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/Yuki9814/agent-hygiene/security/advisories/new
+    about: Report vulnerabilities, bypasses, or confidential security details privately.

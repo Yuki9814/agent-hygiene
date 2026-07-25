@@ -34,8 +34,8 @@ class DiscoveryResult:
 def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
     root = root.resolve()
     docs: List[Document] = []
-    issues: List[DiscoveryIssue] = []
-    for path in sorted(_walk(root, excludes)):
+    issues: List[DiscoveryIssue] = list(_relevant_directory_symlink_issues(root, excludes))
+    for path in sorted(_walk(root, excludes, issues)):
         kind = classify(root, path)
         if kind is None:
             continue
@@ -50,17 +50,20 @@ def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
             )
             continue
         try:
-            if path.stat().st_size > MAX_FILE_BYTES:
-                text = path.read_text(encoding="utf-8", errors="replace")[:MAX_FILE_BYTES]
+            declared_size = path.stat().st_size
+            with path.open("rb") as stream:
+                data = stream.read(MAX_FILE_BYTES + 1)
+            if declared_size > MAX_FILE_BYTES or len(data) > MAX_FILE_BYTES:
+                text = data[:MAX_FILE_BYTES].decode("utf-8", errors="replace")
                 issues.append(
                     DiscoveryIssue(
                         path=relative_path,
                         reason="file_too_large",
-                        message=f"Scanned only the first {MAX_FILE_BYTES} characters.",
+                        message=f"Scanned only the first {MAX_FILE_BYTES} bytes.",
                     )
                 )
             else:
-                text = path.read_text(encoding="utf-8", errors="replace")
+                text = data.decode("utf-8", errors="replace")
         except OSError as exc:
             issues.append(
                 DiscoveryIssue(
@@ -110,9 +113,32 @@ def classify(root: Path, path: Path) -> str:
     return None
 
 
-def _walk(root: Path, excludes: Sequence[str]) -> Iterable[Path]:
+def _walk(
+    root: Path,
+    excludes: Sequence[str],
+    issues: List[DiscoveryIssue],
+) -> Iterable[Path]:
     exclude_set = set(excludes)
-    for directory, dirnames, filenames in os.walk(root, followlinks=False):
+
+    def record_error(exc: OSError) -> None:
+        raw_path = Path(exc.filename) if exc.filename else root
+        try:
+            relative_path = raw_path.relative_to(root).as_posix()
+        except ValueError:
+            relative_path = "."
+        issues.append(
+            DiscoveryIssue(
+                path=relative_path,
+                reason="walk_error",
+                message=f"Could not inspect directory: {exc.__class__.__name__}.",
+            )
+        )
+
+    for directory, dirnames, filenames in os.walk(
+        root,
+        followlinks=False,
+        onerror=record_error,
+    ):
         directory_path = Path(directory)
         dirnames[:] = sorted(name for name in dirnames if name not in exclude_set)
         for filename in sorted(filenames):
@@ -120,3 +146,29 @@ def _walk(root: Path, excludes: Sequence[str]) -> Iterable[Path]:
             parts = set(path.relative_to(root).parts)
             if not parts.intersection(exclude_set):
                 yield path
+
+
+def _relevant_directory_symlink_issues(
+    root: Path, excludes: Sequence[str]
+) -> Iterable[DiscoveryIssue]:
+    exclude_set = set(excludes)
+    for directory, dirnames, _ in os.walk(root, followlinks=False):
+        directory_path = Path(directory)
+        kept = []
+        for name in sorted(dirnames):
+            candidate = directory_path / name
+            relative = candidate.relative_to(root)
+            if set(relative.parts).intersection(exclude_set):
+                continue
+            if candidate.is_symlink():
+                yield DiscoveryIssue(
+                    path=relative.as_posix(),
+                    reason="symlink",
+                    message=(
+                        "Skipped symbolic-link directory; it can hide "
+                        "agent-controlled files at any depth."
+                    ),
+                )
+                continue
+            kept.append(name)
+        dirnames[:] = kept

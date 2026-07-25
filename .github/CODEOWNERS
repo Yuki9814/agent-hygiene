@@ -1,0 +1,15 @@
+# Trust-boundary and release surfaces require maintainer review.
+/action.yml @Yuki9814
+/.agent-hygiene.json @Yuki9814
+/.agent-hygiene-baseline.json @Yuki9814
+/.github/CODEOWNERS @Yuki9814
+/.github/workflows/ @Yuki9814
+/src/agent_hygiene/ @Yuki9814
+/tools/ @Yuki9814
+/tests/ @Yuki9814
+/pyproject.toml @Yuki9814
+/setup.cfg @Yuki9814
+/setup.py @Yuki9814
+/MANIFEST.in @Yuki9814
+/SECURITY.md @Yuki9814
+/MAINTAINERS.md @Yuki9814
