@@ -12,6 +12,11 @@ from unittest import mock
 from agent_hygiene.cli import main
 from agent_hygiene.config import Config, ConfigError, load_config
 from agent_hygiene.reporters import render
+from agent_hygiene.safe_json import (
+    MAX_JSON_NESTING,
+    JSONSafetyError,
+    strict_json_loads,
+)
 from agent_hygiene.scanner import scan
 
 
@@ -19,6 +24,38 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 class UntrustedInputTests(unittest.TestCase):
+    def test_strict_json_depth_limit_is_parser_independent(self):
+        accepted = "[" * MAX_JSON_NESTING + "0" + "]" * MAX_JSON_NESTING
+        strict_json_loads(accepted)
+
+        payload = "[" * (MAX_JSON_NESTING + 1) + "0" + "]" * (
+            MAX_JSON_NESTING + 1
+        )
+        with self.assertRaisesRegex(JSONSafetyError, "safe parser limits"):
+            strict_json_loads(payload)
+
+        literal = '\\"' + "[" * (MAX_JSON_NESTING + 1) + ",}"
+        self.assertEqual(
+            strict_json_loads(json.dumps({"literal": literal})),
+            {"literal": literal},
+        )
+
+    def test_strict_json_trailing_comma_line_is_deterministic(self):
+        payloads = (
+            ('{\n  "mcpServers": {\n    "broken": true,\n  }\n}\n', 4),
+            ("[\n  1,\n]\n", 3),
+        )
+        for payload, expected_line in payloads:
+            with self.subTest(expected_line=expected_line):
+                with self.assertRaises(JSONSafetyError) as raised:
+                    strict_json_loads(payload)
+
+                self.assertEqual(raised.exception.line, expected_line)
+                self.assertEqual(
+                    str(raised.exception),
+                    f"is not valid JSON at line {expected_line}",
+                )
+
     def test_non_object_and_deep_configuration_fail_without_traceback(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

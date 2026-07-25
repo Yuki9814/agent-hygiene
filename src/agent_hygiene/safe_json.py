@@ -17,7 +17,11 @@ class _NonStandardConstant(Exception):
     pass
 
 
+MAX_JSON_NESTING = 128
+
+
 def strict_json_loads(text: str) -> object:
+    _preflight_json_structure(text)
     try:
         return json.loads(text, parse_constant=_reject_constant)
     except json.JSONDecodeError as exc:
@@ -69,3 +73,42 @@ def read_bounded_json(path: Path, max_bytes: int) -> object:
 
 def _reject_constant(value: str) -> object:
     raise _NonStandardConstant(value)
+
+
+def _preflight_json_structure(text: str) -> None:
+    """Enforce parser-independent depth and trailing-comma behavior."""
+    depth = 0
+    line = 1
+    in_string = False
+    escaped = False
+    pending_comma = False
+
+    for character in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character not in " \t\r\n":
+            if pending_comma and character in "]}":
+                raise JSONSafetyError(
+                    f"is not valid JSON at line {line}",
+                    line=line,
+                )
+            pending_comma = character == ","
+            if character == '"':
+                in_string = True
+            elif character in "[{":
+                depth += 1
+                if depth > MAX_JSON_NESTING:
+                    raise JSONSafetyError(
+                        "JSON exceeds safe parser limits",
+                        line=line,
+                    )
+            elif character in "]}" and depth:
+                depth -= 1
+
+        if character == "\n":
+            line += 1
