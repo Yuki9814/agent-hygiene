@@ -12,15 +12,23 @@ The roadmap is organized around evidence gates rather than feature count.
 
 ## v0.4 — independent validation
 
+- [x] Publish a versioned evidence contract that separates repository selection,
+  machine observations, human reviews, and adjudication.
+- [x] Generate neutral blind-review packs without seeded labels or scanner
+  output.
+- [x] Define and enforce a repeatable 100,000-file performance fixture with p95
+  latency and peak RSS gates.
 - [ ] Have at least two maintainers or security practitioners review fixture
   labels without seeing scanner output.
 - [ ] Add sanitized cases contributed through public issues and record their
   provenance.
 - [ ] Publish per-rule corpus metrics in release notes.
-- [ ] Define and measure a repeatable large-repository performance fixture
-  before setting latency or memory gates.
 - [ ] Test the Action in a public fixture repository on pull request and tag
   events.
+
+Current external-evidence status: **0 recorded reviewers, 0 consenting public
+repositories, not independently validated**. Infrastructure completion does not
+complete the external review or canary gates.
 
 ## v1.0 release gate
 

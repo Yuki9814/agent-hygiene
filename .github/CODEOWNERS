@@ -7,6 +7,10 @@
 /src/agent_hygiene/ @Yuki9814
 /tools/ @Yuki9814
 /tests/ @Yuki9814
+/schemas/ @Yuki9814
+/evidence/ @Yuki9814
+/docs/evidence.md @Yuki9814
+/docs/performance.md @Yuki9814
 /pyproject.toml @Yuki9814
 /setup.cfg @Yuki9814
 /setup.py @Yuki9814

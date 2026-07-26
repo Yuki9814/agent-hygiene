@@ -7,7 +7,9 @@ Thanks for making agent-controlled repositories easier to audit.
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests
 PYTHONPATH=src python -m agent_hygiene evaluate tests/corpus/manifest.json
+PYTHONPATH=src python -m agent_hygiene evidence evidence/v0.4.0 --format json
 PYTHONPATH=src python -m agent_hygiene scan .
+PYTHONPATH=src python tools/benchmark_large_repo.py --format json
 python -m pip install build==1.2.2.post1
 python -m build
 ```
@@ -37,11 +39,16 @@ or reporters must include a regression test because those surfaces determine
 whether CI can trust a passing result.
 
 Use sanitized synthetic fixtures. Do not submit real credentials, private
-prompts, private repository content, or sensitive SARIF evidence.
+prompts, private repository content, raw public-canary evidence, absolute local
+paths, or sensitive SARIF evidence. Public-canary entries require explicit
+consent and a fixed 40-character commit revision. Store only the bounded,
+versioned manifest, observation, review, and adjudication documents described
+in [docs/evidence.md](docs/evidence.md).
 
 ## Review and releases
 
 The current maintainer reviews pull requests and release readiness. A change is
-eligible for release only when the test matrix, corpus gate, self-scan, package
-build, and wheel smoke test pass. The exact release procedure is recorded in
+eligible for release only when the test matrix, corpus gate, evidence-contract
+validation, self-scan, 100k-file performance gate, package build, and wheel
+smoke test pass. The exact release procedure is recorded in
 [MAINTAINERS.md](MAINTAINERS.md).

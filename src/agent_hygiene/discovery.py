@@ -35,7 +35,7 @@ def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
     root = root.resolve()
     docs: List[Document] = []
     issues: List[DiscoveryIssue] = list(_relevant_directory_symlink_issues(root, excludes))
-    for path in sorted(_walk(root, excludes, issues)):
+    for path in _walk(root, excludes, issues):
         kind = classify(root, path)
         if kind is None:
             continue

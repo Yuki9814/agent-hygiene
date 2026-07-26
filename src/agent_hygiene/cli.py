@@ -1,11 +1,19 @@
 import argparse
 from dataclasses import replace
+import json
 import sys
 from pathlib import Path
 
 from . import __version__
 from .baseline import render_baseline
 from .config import ConfigError, default_config_text, load_config
+from .evidence import (
+    EvidenceError,
+    build_review_pack,
+    load_evidence_directory,
+    render_evidence_json,
+    render_evidence_markdown,
+)
 from .evaluation import EvaluationError, evaluate_manifest, render_evaluation
 from .models import SEVERITY_ORDER
 from .reporters import render, should_fail, write_output
@@ -27,6 +35,10 @@ def main(argv=None) -> int:
         return run_explain(args)
     if args.command == "evaluate":
         return run_evaluate(args)
+    if args.command == "review-pack":
+        return run_review_pack(args)
+    if args.command == "evidence":
+        return run_evidence(args)
 
     parser.print_help()
     return 2
@@ -74,6 +86,29 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_parser.add_argument("--format", choices=["text", "json"], default="text")
     evaluate_parser.add_argument("--min-precision", type=float, help="override manifest precision gate")
     evaluate_parser.add_argument("--min-recall", type=float, help="override manifest recall gate")
+
+    review_pack_parser = subparsers.add_parser(
+        "review-pack",
+        help="build a neutral blind-review pack from a corpus manifest",
+    )
+    review_pack_parser.add_argument("manifest", help="path to a version 1 corpus manifest")
+    review_pack_parser.add_argument(
+        "--output",
+        required=True,
+        help="write the review pack to this JSON file",
+    )
+
+    evidence_parser = subparsers.add_parser(
+        "evidence",
+        help="validate and summarize a layered public-canary evidence directory",
+    )
+    evidence_parser.add_argument("directory", help="path to the evidence directory")
+    evidence_parser.add_argument(
+        "--format",
+        choices=["json", "markdown"],
+        default="json",
+    )
+    evidence_parser.add_argument("--output", help="write the summary to a file")
 
     return parser
 
@@ -181,6 +216,54 @@ def run_evaluate(args: argparse.Namespace) -> int:
         return 2
     print(render_evaluation(result, args.format), end="")
     return 0 if result.passed else 1
+
+
+def run_review_pack(args: argparse.Namespace) -> int:
+    try:
+        pack = build_review_pack(Path(args.manifest))
+        text = json.dumps(pack, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        write_output(text, args.output)
+    except EvidenceError as exc:
+        print(f"agent-hygiene: review pack failed: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(
+            f"agent-hygiene: could not write {args.output}: "
+            f"{exc.__class__.__name__}",
+            file=sys.stderr,
+        )
+        return 2
+    print(f"wrote {args.output} with {len(pack['cases'])} cases")
+    return 0
+
+
+def run_evidence(args: argparse.Namespace) -> int:
+    try:
+        summary = load_evidence_directory(Path(args.directory))
+        text = (
+            render_evidence_markdown(summary)
+            if args.format == "markdown"
+            else render_evidence_json(summary)
+        )
+        if args.output:
+            write_output(text, args.output)
+    except EvidenceError as exc:
+        print(f"agent-hygiene: evidence validation failed: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        destination = args.output or "standard output"
+        print(
+            f"agent-hygiene: could not write {destination}: "
+            f"{exc.__class__.__name__}",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.output:
+        print(f"wrote {args.output}")
+    else:
+        print(text, end="")
+    return 0
 
 
 def severity_at_least(left: str, right: str) -> bool:
