@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agent_hygiene.config import Config
 from agent_hygiene.discovery import discover
@@ -37,6 +38,38 @@ class PerformanceContractTests(unittest.TestCase):
 
             self.assertEqual(first, ["a-first/AGENTS.md", "z-last/AGENTS.md"])
             self.assertEqual(second, first)
+
+    def test_discovery_uses_one_walk_and_keeps_every_supported_surface(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            paths = [
+                "AGENTS.md",
+                ".github/workflows/nested/check.yml",
+                ".github/copilot-instructions.md",
+                ".github/instructions/nested/team.instructions.md",
+                ".github/agents/nested/reviewer.md",
+                ".cursor/rules/nested/style.mdc",
+                "packages/demo/skills/review/SKILL.md",
+                "packages/demo/mcp.json",
+            ]
+            for relative_path in paths:
+                path = root / relative_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("Run tests before accepting changes.\n", encoding="utf-8")
+            (root / "noise.txt").write_text("unrelated\n", encoding="utf-8")
+
+            with patch(
+                "agent_hygiene.discovery.os.walk",
+                wraps=os.walk,
+            ) as walk:
+                result = discover(root, Config().exclude)
+
+            self.assertEqual(walk.call_count, 1)
+            self.assertEqual(
+                {document.relative_path for document in result.documents},
+                set(paths),
+            )
+            self.assertEqual(result.issues, [])
 
     def test_small_benchmark_emits_versioned_json_and_passes(self):
         process = self._run_benchmark(

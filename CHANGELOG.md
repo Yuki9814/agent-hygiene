@@ -2,6 +2,18 @@
 
 All notable changes are documented here. This project follows semantic versioning.
 
+## 0.4.1 - 2026-07-26
+
+- Collapse discovery and symlink auditing into one deterministic, pruned
+  traversal, and avoid per-file path construction for irrelevant files.
+- Enforce the full 100,000-file release performance contract in pull requests
+  so an immutable version tag is not the first exact hosted-runner gate.
+- Keep the 2.5-second/150-MiB contract unchanged. The immutable `v0.4.0` tag
+  exceeded the GitHub Ubuntu x64 latency gate at p95 3.884 seconds, so its
+  workflow correctly created no release.
+- Declare 0.4.x as the supported line while retaining time-bounded critical-fix
+  support for 0.3.x and 0.2.x.
+
 ## 0.4.0 - 2026-07-26
 
 - Add a strict, versioned evidence contract for consenting public-repository

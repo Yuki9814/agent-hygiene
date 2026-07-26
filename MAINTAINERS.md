@@ -50,8 +50,7 @@ verified.
 
 The evidence summary is recomputed from the versioned documents; never edit a
 reported metric by hand. A release may state “independently validated” only
-when the contract itself reports that status. Pull-request CI uses broad
-functional benchmark guardrails; the release benchmark is the 20-run,
-2.5-second/150-MiB contract. A release-gate failure needs an investigated code
-or environment change; do not raise the threshold merely to make a release
-pass.
+when the contract itself reports that status. Pull-request CI and release
+verification use the same 20-run, 2.5-second/150-MiB benchmark contract. A
+release-gate failure needs an investigated code or environment change; do not
+raise the threshold merely to make a release pass.

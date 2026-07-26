@@ -16,7 +16,7 @@ published GitHub wheel:
 
 ```bash
 python -m pip install \
-  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.4.0/agent_hygiene-0.4.0-py3-none-any.whl
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.4.1/agent_hygiene-0.4.1-py3-none-any.whl
 agent-hygiene scan .
 ```
 
@@ -99,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Pin an existing release. Review release notes before upgrading.
-      - uses: Yuki9814/agent-hygiene@v0.4.0
+      - uses: Yuki9814/agent-hygiene@v0.4.1
         with:
           min-score: "85"
           fail-on: high
@@ -276,12 +276,11 @@ enforces p95 scan latency of at most 2.5 seconds and peak RSS of at most
 PYTHONPATH=src python tools/benchmark_large_repo.py --format json
 ```
 
-Pull-request CI runs the same 100,000-file functional contract with broad
-hosted-runner guardrails; packaging still depends on it. The versioned result
-records the platform, Python version, fixture shape, individual timings, gates,
-and pass state. Fixture generation, child startup, and imports are excluded
-from scan latency. See [docs/performance.md](docs/performance.md) for the exact
-method and limitations.
+Pull-request CI and release verification run the same 100,000-file gate, and
+packaging depends on it. The versioned result records the platform, Python
+version, fixture shape, individual timings, gates, and pass state. Fixture
+generation, child startup, and imports are excluded from scan latency. See
+[docs/performance.md](docs/performance.md) for the exact method and limitations.
 
 ## Machine-readable contracts
 

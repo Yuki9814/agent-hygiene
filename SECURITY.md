@@ -4,7 +4,8 @@
 
 | Version | Supported |
 | --- | --- |
-| 0.3.x | yes |
+| 0.4.x | yes |
+| 0.3.x | critical fixes until 2026-10-26 |
 | 0.2.x | critical fixes until 2026-10-26 |
 | < 0.2 | no |
 
