@@ -34,7 +34,7 @@ class DiscoveryResult:
 def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
     root = root.resolve()
     docs: List[Document] = []
-    issues: List[DiscoveryIssue] = list(_relevant_directory_symlink_issues(root, excludes))
+    issues: List[DiscoveryIssue] = []
     for path in _walk(root, excludes, issues):
         kind = classify(root, path)
         if kind is None:
@@ -140,35 +140,49 @@ def _walk(
         onerror=record_error,
     ):
         directory_path = Path(directory)
-        dirnames[:] = sorted(name for name in dirnames if name not in exclude_set)
-        for filename in sorted(filenames):
-            path = directory_path / filename
-            parts = set(path.relative_to(root).parts)
-            if not parts.intersection(exclude_set):
-                yield path
-
-
-def _relevant_directory_symlink_issues(
-    root: Path, excludes: Sequence[str]
-) -> Iterable[DiscoveryIssue]:
-    exclude_set = set(excludes)
-    for directory, dirnames, _ in os.walk(root, followlinks=False):
-        directory_path = Path(directory)
-        kept = []
+        relative_directory = directory_path.relative_to(root)
+        kept_directories = []
         for name in sorted(dirnames):
-            candidate = directory_path / name
-            relative = candidate.relative_to(root)
-            if set(relative.parts).intersection(exclude_set):
+            if name in exclude_set:
                 continue
+            candidate = directory_path / name
+            relative = relative_directory / name
             if candidate.is_symlink():
-                yield DiscoveryIssue(
-                    path=relative.as_posix(),
-                    reason="symlink",
-                    message=(
-                        "Skipped symbolic-link directory; it can hide "
-                        "agent-controlled files at any depth."
-                    ),
+                issues.append(
+                    DiscoveryIssue(
+                        path=relative.as_posix(),
+                        reason="symlink",
+                        message=(
+                            "Skipped symbolic-link directory; it can hide "
+                            "agent-controlled files at any depth."
+                        ),
+                    )
                 )
                 continue
-            kept.append(name)
-        dirnames[:] = kept
+            kept_directories.append(name)
+        dirnames[:] = kept_directories
+
+        for filename in sorted(filenames):
+            if filename in exclude_set:
+                continue
+            if not _could_be_relevant(relative_directory.parts, filename):
+                continue
+            yield directory_path / filename
+
+
+def _could_be_relevant(directory_parts: Sequence[str], filename: str) -> bool:
+    if filename in INSTRUCTION_NAMES or filename in MCP_NAMES:
+        return True
+
+    prefix = tuple(directory_parts[:2])
+    if prefix == (".github", "workflows"):
+        return filename.endswith((".yml", ".yaml"))
+    if tuple(directory_parts) == (".github",):
+        return filename == "copilot-instructions.md"
+    if prefix == (".github", "instructions"):
+        return filename.endswith(".instructions.md")
+    if prefix == (".github", "agents"):
+        return filename.endswith(".md")
+    if prefix == (".cursor", "rules"):
+        return filename.endswith(".mdc")
+    return filename == "SKILL.md" and "skills" in directory_parts

@@ -34,11 +34,14 @@ path.
 - scan completeness: required
 - discovered relevant files: exactly 3
 
-Release verification enforces these gates on Python 3.13. Pull-request CI keeps
-the same 100,000-file fixture, completeness checks, and package dependency, but
-uses broad 30-second/512-MiB guardrails with three measured runs. This catches
-functional or catastrophic regressions without treating hosted-runner wall
-clock as machine-comparable release evidence.
+Release verification and pull-request CI enforce the same gates on Python 3.13,
+and package verification depends on the result. This prevents a version tag
+from being the first place that the hosted-runner release contract is tested.
+
+The immutable `v0.4.0` tag recorded p95 3.884 seconds and peak RSS 19.38 MiB on
+GitHub's Ubuntu x64 runner. No release was created because that run exceeded the
+2.5-second latency gate. Version 0.4.1 removes the duplicate repository walk and
+avoids constructing paths for irrelevant files instead of weakening the gate.
 
 The fixture primarily measures the cost of walking a large repository with a
 small number of agent-control surfaces. It does not model a repository
