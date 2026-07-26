@@ -10,5 +10,7 @@ include SECURITY.md
 include SUPPORT.md
 recursive-include .github *.md *.yml
 recursive-include docs *.md
+recursive-include evidence *.json
+recursive-include schemas *.json
 recursive-include tests *.py *.json *.fixture
 recursive-include tools *.py

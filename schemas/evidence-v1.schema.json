@@ -1,0 +1,654 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Yuki9814/agent-hygiene/schemas/evidence-v1.schema.json",
+  "title": "Agent Hygiene evidence contract v1",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/public_canary_manifest"
+    },
+    {
+      "$ref": "#/$defs/observation"
+    },
+    {
+      "$ref": "#/$defs/review"
+    },
+    {
+      "$ref": "#/$defs/adjudication"
+    },
+    {
+      "$ref": "#/$defs/evidence_summary"
+    },
+    {
+      "$ref": "#/$defs/review_pack"
+    }
+  ],
+  "$defs": {
+    "schema_version": {
+      "const": 1
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,79}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:/)(?!.*//)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*[\\\\\\u0000-\\u001F\\u007F])(?!.*\\/$).+$"
+    },
+    "https_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^\\s?#]+$",
+      "maxLength": 2048
+    },
+    "github_repository_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[Gg][Ii][Tt][Hh][Uu][Bb]\\.[Cc][Oo][Mm]/[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/(?![A-Za-z0-9._-]*\\.[Gg][Ii][Tt]/?$)[A-Za-z0-9._-]{1,100}/?$",
+      "maxLength": 2048
+    },
+    "safe_public_text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$",
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "(^|[\\s=('\\\"\\[])/(?!/)[^\\s,;]*"
+          },
+          {
+            "pattern": "(^|[\\s=('\\\"\\[])[A-Za-z]:[\\\\/]"
+          },
+          {
+            "pattern": "(^|[\\s=('\\\"\\[])~[\\\\/]"
+          },
+          {
+            "pattern": "[Ff][Ii][Ll][Ee]://"
+          }
+        ]
+      },
+      "description": "Runtime validation also rejects credential-like assignments and known token formats."
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "repository_url",
+        "revision",
+        "consent_url",
+        "selection_reason"
+      ],
+      "properties": {
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "repository_url": {
+          "$ref": "#/$defs/github_repository_url"
+        },
+        "revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "consent_url": {
+          "$ref": "#/$defs/https_url"
+        },
+        "selection_reason": {
+          "$ref": "#/$defs/safe_public_text"
+        }
+      }
+    },
+    "public_canary_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "limitations",
+        "repositories"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/schema_version"
+        },
+        "kind": {
+          "const": "public_canary_manifest"
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/safe_public_text"
+          }
+        },
+        "repositories": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/repository"
+          }
+        }
+      }
+    },
+    "observed_finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "rule_id",
+        "path",
+        "line"
+      ],
+      "properties": {
+        "finding_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "rule_id": {
+          "$ref": "#/$defs/rule_id"
+        },
+        "path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "repository_id",
+        "revision",
+        "complete",
+        "result_sha256",
+        "findings"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/schema_version"
+        },
+        "kind": {
+          "const": "observation"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "revision": {
+          "$ref": "#/$defs/revision"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "result_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/observed_finding"
+          }
+        }
+      }
+    },
+    "judgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "verdict"
+      ],
+      "properties": {
+        "finding_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "verdict": {
+          "enum": [
+            "true-positive",
+            "false-positive"
+          ]
+        }
+      }
+    },
+    "false_negative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id",
+        "path",
+        "line"
+      ],
+      "properties": {
+        "rule_id": {
+          "$ref": "#/$defs/rule_id"
+        },
+        "path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "review_id",
+        "repository_id",
+        "reviewer_id",
+        "independent",
+        "mode",
+        "observation_sha256",
+        "judgments"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/schema_version"
+        },
+        "kind": {
+          "const": "review"
+        },
+        "review_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "reviewer_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "independent": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "findings-only",
+            "full-surface"
+          ]
+        },
+        "observation_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "judgments": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/judgment"
+          }
+        },
+        "false_negatives": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/false_negative"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "full-surface"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "false_negatives"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "findings-only"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "false_negatives": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "adjudication_id",
+        "repository_id",
+        "finding_id",
+        "adjudicator_id",
+        "verdict"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/schema_version"
+        },
+        "kind": {
+          "const": "adjudication"
+        },
+        "adjudication_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "finding_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "adjudicator_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "verdict": {
+          "enum": [
+            "true-positive",
+            "false-positive"
+          ]
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "true_positives",
+        "false_positives",
+        "false_negatives",
+        "precision",
+        "recall"
+      ],
+      "properties": {
+        "true_positives": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "false_positives": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "false_negatives": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "precision": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "recall": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "finding_id",
+        "reviewer_count"
+      ],
+      "properties": {
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "finding_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "reviewer_count": {
+          "type": "integer",
+          "minimum": 2
+        }
+      }
+    },
+    "evidence_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "repository_count",
+        "reviewer_count",
+        "independent_reviewer_count",
+        "complete_observation_count",
+        "full_surface_repository_count",
+        "metrics",
+        "per_rule",
+        "conflicts",
+        "limitations",
+        "independently_validated",
+        "status"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/schema_version"
+        },
+        "kind": {
+          "const": "evidence_summary"
+        },
+        "repository_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reviewer_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "independent_reviewer_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "complete_observation_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "full_surface_repository_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metrics": {
+          "$ref": "#/$defs/metrics"
+        },
+        "per_rule": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/rule_id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/metrics"
+          }
+        },
+        "conflicts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "resolved",
+            "unresolved"
+          ],
+          "properties": {
+            "resolved": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unresolved": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/conflict"
+              }
+            }
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/safe_public_text"
+          }
+        },
+        "independently_validated": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "independently validated",
+            "not independently validated"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "independently_validated": {
+                "const": true
+              }
+            },
+            "required": [
+              "independently_validated"
+            ]
+          },
+          "then": {
+            "properties": {
+              "metrics": {
+                "properties": {
+                  "precision": {
+                    "type": "number"
+                  },
+                  "recall": {
+                    "type": "number"
+                  }
+                }
+              },
+              "status": {
+                "const": "independently validated"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "status": {
+                "const": "not independently validated"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "review_pack_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "content"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 1048576
+        }
+      }
+    },
+    "review_pack_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "files"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "pattern": "^C[0-9]{3,}$"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/review_pack_file"
+          }
+        }
+      }
+    },
+    "review_pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "kind",
+        "corpus_sha256",
+        "cases"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/schema_version"
+        },
+        "kind": {
+          "const": "review_pack"
+        },
+        "corpus_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": {
+            "$ref": "#/$defs/review_pack_case"
+          }
+        }
+      }
+    }
+  }
+}

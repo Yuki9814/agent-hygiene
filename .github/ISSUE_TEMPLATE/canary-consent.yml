@@ -1,0 +1,48 @@
+name: Public canary consent
+description: Offer a public repository for a read-only agent-hygiene canary.
+title: "canary-consent: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A canary is a read-only scan at one fixed public commit. Consent does
+        not imply adoption, endorsement, accuracy, or a passing result.
+  - type: input
+    id: repository
+    attributes:
+      label: Public repository URL
+      placeholder: https://github.com/owner/repository
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Fixed 40-character commit
+      description: Branch names and moving tags are not accepted as evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Permitted reporting scope
+      description: Describe whether aggregate counts, repository identity, and sanitized fixtures may be published.
+    validations:
+      required: true
+  - type: textarea
+    id: limitations
+    attributes:
+      label: Repository-specific limitations
+      description: Note generated files, unusual layouts, or content that must not be retained.
+    validations:
+      required: true
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Consent
+      options:
+        - label: I maintain this repository or am authorized to grant this read-only scan permission.
+          required: true
+        - label: I understand that raw repository content and raw finding evidence will not be committed.
+          required: true
+        - label: I understand that I may withdraw before an observation is published.
+          required: true

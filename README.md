@@ -16,7 +16,7 @@ published GitHub wheel:
 
 ```bash
 python -m pip install \
-  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.3.0/agent_hygiene-0.3.0-py3-none-any.whl
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.4.0/agent_hygiene-0.4.0-py3-none-any.whl
 agent-hygiene scan .
 ```
 
@@ -99,7 +99,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Pin an existing release. Review release notes before upgrading.
-      - uses: Yuki9814/agent-hygiene@v0.3.0
+      - uses: Yuki9814/agent-hygiene@v0.4.0
         with:
           min-score: "85"
           fail-on: high
@@ -164,6 +164,8 @@ agent-hygiene init [path]
 agent-hygiene baseline [path] --output .agent-hygiene-baseline.json
 agent-hygiene explain RULE_ID
 agent-hygiene evaluate MANIFEST [--format text|json]
+agent-hygiene review-pack MANIFEST --output blind-review.json
+agent-hygiene evidence DIRECTORY [--format json|markdown] [--output FILE]
 ```
 
 ## Config
@@ -231,12 +233,55 @@ declared precision and recall gates:
 PYTHONPATH=src python -m agent_hygiene evaluate tests/corpus/manifest.json
 ```
 
-The v0.3.0 corpus snapshot has 18 cases and 13 expected findings. It currently
+The v0.4.0 synthetic corpus snapshot has 18 cases and 13 expected findings. It currently
 reports 13 true positives, 0 false positives, and 0 false negatives against
 gates of 0.95 precision and 0.90 recall. These are seeded regression fixtures,
 not a claim about performance on independent real-world repositories. The
 methodology and manifest contract are documented in
 [docs/evaluation.md](docs/evaluation.md).
+
+## Public evidence contract
+
+Version 0.4 adds a separate evidence contract for future read-only canaries
+against consenting public repositories. Selection manifests, machine
+observations, human reviews, and adjudications remain separate, and summaries
+recompute raw counts rather than trusting handwritten totals.
+
+```bash
+agent-hygiene review-pack tests/corpus/manifest.json \
+  --output blind-review.json
+agent-hygiene evidence evidence/v0.4.0 --format markdown
+```
+
+The review pack uses content-derived ordering and neutral case IDs, and omits
+seeded labels, source fixture paths, expected findings, and scanner output.
+Canary records require a canonical GitHub repository URL, fixed commit, public
+consent link, and non-sensitive study limitations. Stored observations exclude
+absolute checkout roots and raw finding evidence. Findings-only review cannot
+measure recall, and zero denominators are reported as `null`; they also block
+independent-validation status.
+
+Current status: **0 recorded reviewers, 0 consenting public repositories,
+not independently validated**. The contract and tooling are ready; the external
+review and canary work in [issue #4](https://github.com/Yuki9814/agent-hygiene/issues/4)
+is not complete. See [docs/evidence.md](docs/evidence.md) for the protocol.
+
+## Performance contract
+
+Release verification generates an ephemeral 100,000-file repository and
+enforces p95 scan latency of at most 2.5 seconds and peak RSS of at most
+150 MiB:
+
+```bash
+PYTHONPATH=src python tools/benchmark_large_repo.py --format json
+```
+
+Pull-request CI runs the same 100,000-file functional contract with broad
+hosted-runner guardrails; packaging still depends on it. The versioned result
+records the platform, Python version, fixture shape, individual timings, gates,
+and pass state. Fixture generation, child startup, and imports are excluded
+from scan latency. See [docs/performance.md](docs/performance.md) for the exact
+method and limitations.
 
 ## Machine-readable contracts
 

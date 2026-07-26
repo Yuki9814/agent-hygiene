@@ -40,6 +40,8 @@ jobs:
           python-version: "3.13"
       - name: Evaluate synthetic corpus
         run: PYTHONPATH=src python -m agent_hygiene evaluate tests/corpus/manifest.json
+      - name: Validate canonical public evidence
+        run: PYTHONPATH=src python -m agent_hygiene evidence evidence/v0.4.0 --format json
       - name: Scan this repository
         run: PYTHONPATH=src python -m agent_hygiene scan . --min-score 85 --fail-on high
 
@@ -57,8 +59,23 @@ jobs:
           min-score: "85"
           fail-on: high
 
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Exercise the 100k-file performance contract
+        run: >
+          PYTHONPATH=src python tools/benchmark_large_repo.py
+          --warmups 1 --runs 3
+          --max-p95-seconds 30 --max-rss-mib 512
+          --format json
+
   package:
-    needs: [test, evidence, action]
+    needs: [test, evidence, action, performance]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

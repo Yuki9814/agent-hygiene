@@ -7,6 +7,10 @@ finding locations.
 It is intentionally synthetic. Passing it does not prove that a rule will have
 the same precision or recall on independent repositories.
 
+The public-canary evidence contract is separate. Synthetic expectations remain
+useful for regression testing, but they are not counted as independent review
+evidence.
+
 ## Reproduce the result
 
 From a source checkout:
@@ -19,6 +23,19 @@ PYTHONPATH=src python -m agent_hygiene evaluate \
 
 CI runs the same command. A gate miss returns exit code `1`. An invalid,
 unreadable, escaping, or incomplete corpus returns exit code `2`.
+
+To prepare the corpus for blind review without exposing seeded labels:
+
+```bash
+PYTHONPATH=src python -m agent_hygiene review-pack \
+  tests/corpus/manifest.json --output blind-review.json
+```
+
+The generated pack sorts cases by a digest of neutral target paths and content,
+then assigns `C001`, `C002`, ... identifiers. It contains only target paths and
+fixture content, and omits original case identifiers, fixture source paths,
+expected findings, gates, and scanner output. Reviewers should record judgments
+before seeing the labeled manifest or evaluation result.
 
 ## Method
 
@@ -88,3 +105,5 @@ A rule change should add or update:
 Review the case content rather than only the aggregate score. Seeded fixtures
 can accidentally encode the implementation, so future release gates include an
 independently reviewed corpus described in [ROADMAP.md](../ROADMAP.md).
+Review-pack generation reduces label leakage; it does not make a seeded corpus
+independent or convert synthetic results into public-canary evidence.

@@ -25,9 +25,12 @@ available.
 ## Release checklist
 
 1. Confirm `CHANGELOG.md` and all three version declarations agree.
-2. Run unit tests, corpus evaluation, self-scan, local Action integration,
-   distribution build, and wheel smoke installation.
-3. Review the complete diff and confirm no fixture contains a live secret.
+2. Run unit tests, corpus evaluation, canonical evidence validation, self-scan,
+   local Action integration, the default 100k-file benchmark, distribution
+   build, and wheel smoke installation.
+3. Review the complete diff and confirm no fixture or evidence document
+   contains a live secret, raw repository content, an absolute local path, or
+   another private artifact.
 4. Merge the release pull request.
 5. Create and push the matching `vMAJOR.MINOR.PATCH` tag.
 6. Let the tag workflow build checksums and create the GitHub release. If that
@@ -44,3 +47,11 @@ require that review for enforcement.
 PyPI publishing is not part of the current process. Documentation must not
 claim that a package-index release exists until publishing is independently
 verified.
+
+The evidence summary is recomputed from the versioned documents; never edit a
+reported metric by hand. A release may state “independently validated” only
+when the contract itself reports that status. Pull-request CI uses broad
+functional benchmark guardrails; the release benchmark is the 20-run,
+2.5-second/150-MiB contract. A release-gate failure needs an investigated code
+or environment change; do not raise the threshold merely to make a release
+pass.

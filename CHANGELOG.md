@@ -2,6 +2,30 @@
 
 All notable changes are documented here. This project follows semantic versioning.
 
+## 0.4.0 - 2026-07-26
+
+- Add a strict, versioned evidence contract for consenting public-repository
+  canaries, with separate manifests, machine observations, human reviews, and
+  adjudications.
+- Add deterministic blind-review packs with content-derived ordering that omit
+  seeded labels, source fixture paths, expected findings, and scanner output.
+- Add JSON and Markdown canary summaries with per-rule raw counts. Zero
+  denominators and findings-only reviews never claim perfect precision or
+  measured recall.
+- Keep scan and synthetic-evaluation JSON contracts unchanged. Synthetic corpus
+  gates remain separate from canary observations.
+- Stream repository discovery instead of materializing every path before
+  scanning.
+- Add a reproducible 100,000-file benchmark. Release verification enforces p95
+  scan latency of at most 2.5 seconds and peak RSS of at most 150 MiB; pull
+  requests retain a broad functional guardrail to avoid hosted-runner noise.
+- Reject duplicate canonical repository identities, sensitive limitations, and
+  malformed or non-canonical URLs before evidence can receive independent
+  validation status.
+- Publish the evidence and performance methodology without claiming external
+  validation. At release preparation time there are 0 recorded reviewers,
+  0 consenting repositories, and no independently validated canary result.
+
 ## 0.3.0 - 2026-07-26
 
 - Add a versioned synthetic corpus and `evaluate` command with explicit

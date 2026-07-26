@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "public_canary_manifest",
+  "limitations": [
+    "No public repository has consented to a canary at this release-preparation stage.",
+    "No reviewer has submitted a review.",
+    "Synthetic corpus results are not counted as public-canary evidence."
+  ],
+  "repositories": []
+}
