@@ -30,6 +30,19 @@ Current external-evidence status: **0 recorded reviewers, 0 consenting public
 repositories, not independently validated**. Infrastructure completion does not
 complete the external review or canary gates.
 
+## v0.5 — portable maintainer handoff
+
+- [x] Let the Action emit bounded portable native JSON before its final policy
+  gate.
+- [x] Record a declared source revision without exposing an absolute checkout
+  root.
+- [x] Freeze a findings report and clean same-scope rerun for PatchHive
+  interoperability regression.
+- [ ] Validate the workflow with an external maintainer (`N=0`, not evaluated).
+
+The fixture pair is synthetic compatibility evidence. It is not a consenting
+repository, external review, or adoption result.
+
 ## v1.0 release gate
 
 - [ ] Complete a 30-day canary across consenting public repositories.

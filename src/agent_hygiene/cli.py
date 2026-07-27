@@ -1,6 +1,7 @@
 import argparse
 from dataclasses import replace
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -67,6 +68,16 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--no-baseline", action="store_true", help="do not apply a configured baseline")
     scan_parser.add_argument("--quiet", action="store_true", help="only print output when findings exist")
     scan_parser.add_argument("--no-color", action="store_true", help="reserved for stable CI output")
+    scan_parser.add_argument(
+        "--portable",
+        action="store_true",
+        help="omit the absolute scan root from JSON output",
+    )
+    scan_parser.add_argument(
+        "--source-revision",
+        type=_source_revision_argument,
+        help="declare the scanned source revision as 7 to 64 hexadecimal characters",
+    )
 
     init_parser = subparsers.add_parser("init", help="write .agent-hygiene.json")
     init_parser.add_argument("path", nargs="?", default=".", help="repository path")
@@ -114,6 +125,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_scan(args: argparse.Namespace) -> int:
+    if args.portable and args.format != "json":
+        print(
+            "agent-hygiene: --portable requires --format json",
+            file=sys.stderr,
+        )
+        return 2
+
     root = Path(args.path).resolve()
     if not root.exists() or not root.is_dir():
         print(f"agent-hygiene: path is not a directory: {root}", file=sys.stderr)
@@ -133,7 +151,15 @@ def run_scan(args: argparse.Namespace) -> int:
     )
 
     result = scan(root, config, use_baseline=not args.no_baseline)
-    text = render(result, args.format)
+    if args.source_revision:
+        result = replace(
+            result,
+            summary=replace(
+                result.summary,
+                source_revision=args.source_revision,
+            ),
+        )
+    text = render(result, args.format, portable=args.portable)
 
     if args.output:
         try:
@@ -278,3 +304,11 @@ def _score_argument(value: str) -> int:
     if not 0 <= score <= 100:
         raise argparse.ArgumentTypeError("must be an integer from 0 to 100")
     return score
+
+
+def _source_revision_argument(value: str) -> str:
+    if not re.fullmatch(r"[0-9a-fA-F]{7,64}", value):
+        raise argparse.ArgumentTypeError(
+            "must contain 7 to 64 hexadecimal characters"
+        )
+    return value.lower()

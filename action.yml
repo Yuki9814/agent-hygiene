@@ -19,10 +19,19 @@ inputs:
     description: Optional SARIF output path.
     required: false
     default: ""
+  json:
+    description: Optional portable JSON output path for local maintainer handoff.
+    required: false
+    default: ""
   baseline:
     description: Optional agent-hygiene baseline path.
     required: false
     default: ""
+
+outputs:
+  json:
+    description: Absolute path to the portable JSON report, or an empty value when disabled.
+    value: ${{ steps.validate.outputs.json }}
 
 runs:
   using: composite
@@ -35,6 +44,7 @@ runs:
         AGENT_HYGIENE_INPUT_MIN_SCORE: ${{ inputs.min-score }}
         AGENT_HYGIENE_INPUT_FAIL_ON: ${{ inputs.fail-on }}
         AGENT_HYGIENE_INPUT_SARIF: ${{ inputs.sarif }}
+        AGENT_HYGIENE_INPUT_JSON: ${{ inputs.json }}
         AGENT_HYGIENE_INPUT_BASELINE: ${{ inputs.baseline }}
       run: python -I "$GITHUB_ACTION_PATH/tools/validate_action_inputs.py" "$GITHUB_OUTPUT"
     - name: Install agent-hygiene
@@ -47,16 +57,29 @@ runs:
         AGENT_HYGIENE_MIN_SCORE: ${{ steps.validate.outputs.min_score }}
         AGENT_HYGIENE_FAIL_ON: ${{ steps.validate.outputs.fail_on }}
         AGENT_HYGIENE_SARIF: ${{ steps.validate.outputs.sarif }}
+        AGENT_HYGIENE_JSON: ${{ steps.validate.outputs.json }}
         AGENT_HYGIENE_BASELINE: ${{ steps.validate.outputs.baseline }}
+        AGENT_HYGIENE_SOURCE_REVISION: ${{ github.sha }}
       run: |
         set -euo pipefail
         BASELINE_ARGS=()
         if [ -n "$AGENT_HYGIENE_BASELINE" ]; then
           BASELINE_ARGS+=(--baseline "$AGENT_HYGIENE_BASELINE")
         fi
+        if [ -n "$AGENT_HYGIENE_JSON" ]; then
+          agent-hygiene scan "$AGENT_HYGIENE_PATH" \
+            --format json \
+            --portable \
+            --source-revision "$AGENT_HYGIENE_SOURCE_REVISION" \
+            --output "$AGENT_HYGIENE_JSON" \
+            --min-score 0 \
+            --fail-on none \
+            "${BASELINE_ARGS[@]}"
+        fi
         if [ -n "$AGENT_HYGIENE_SARIF" ]; then
           agent-hygiene scan "$AGENT_HYGIENE_PATH" \
             --format sarif \
+            --source-revision "$AGENT_HYGIENE_SOURCE_REVISION" \
             --output "$AGENT_HYGIENE_SARIF" \
             --min-score 0 \
             --fail-on none \

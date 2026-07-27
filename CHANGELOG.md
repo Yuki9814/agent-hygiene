@@ -2,6 +2,21 @@
 
 All notable changes are documented here. This project follows semantic versioning.
 
+## 0.5.0 - 2026-07-27
+
+- Add an optional GitHub Action `json` input and output so a protected CI run
+  can produce a native report for local maintainer handoff before the final
+  severity gate.
+- Add `--portable` JSON output, which omits the absolute checkout root, and
+  `--source-revision`, which carries a bounded declared revision into native
+  JSON and SARIF.
+- Reject Action output collisions with the baseline or another report before
+  scanning, while keeping all paths bounded to `GITHUB_WORKSPACE`.
+- Publish deterministic findings and clean-rerun fixtures shared with
+  PatchHive, including exact reproduction commands and SHA-256 digests.
+- Keep the scanner offline, dependency-free, fail-closed, and backward
+  compatible with native JSON schema 1 and existing SARIF consumers.
+
 ## 0.4.1 - 2026-07-26
 
 - Collapse discovery and symlink auditing into one deterministic, pruned

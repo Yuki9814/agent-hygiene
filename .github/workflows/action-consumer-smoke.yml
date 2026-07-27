@@ -15,8 +15,30 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
-      - name: Run the published v0.4.1 action
-        uses: Yuki9814/agent-hygiene@v0.4.1
+      - name: Run the published v0.5.0 action
+        id: hygiene
+        uses: Yuki9814/agent-hygiene@v0.5.0
         with:
           min-score: "85"
           fail-on: high
+          json: agent-hygiene-action.json
+          sarif: agent-hygiene-action.sarif
+      - name: Verify published portable handoff
+        env:
+          JSON_PATH: ${{ steps.hygiene.outputs.json }}
+          SARIF_PATH: agent-hygiene-action.sarif
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          python -I - "$JSON_PATH" "$SARIF_PATH" "$EXPECTED_REVISION" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          sarif = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          summary = payload["summary"]
+          assert "root" not in summary
+          assert summary["source_revision"] == sys.argv[3]
+          assert len(summary["scope_fingerprint"]) == 20
+          assert sarif["runs"][0]["properties"]["sourceRevision"] == sys.argv[3]
+          PY

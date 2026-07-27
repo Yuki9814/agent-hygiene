@@ -9,9 +9,16 @@ from .models import SEVERITY_ORDER, Finding, ScanResult
 from .rules import RULES
 
 
-def render(result: ScanResult, output_format: str) -> str:
+def render(result: ScanResult, output_format: str, portable: bool = False) -> str:
     if output_format == "json":
-        return json.dumps(result.to_dict(), indent=2, sort_keys=True) + "\n"
+        return (
+            json.dumps(
+                result.to_dict(portable=portable),
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
     if output_format == "markdown":
         return render_markdown(result)
     if output_format == "sarif":
@@ -144,6 +151,11 @@ def render_sarif(result: ScanResult) -> str:
                     **(
                         {"scopeFingerprint": result.summary.scope_fingerprint}
                         if result.summary.scope_fingerprint
+                        else {}
+                    ),
+                    **(
+                        {"sourceRevision": result.summary.source_revision}
+                        if result.summary.source_revision
                         else {}
                     ),
                 },

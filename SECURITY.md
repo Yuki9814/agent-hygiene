@@ -4,7 +4,8 @@
 
 | Version | Supported |
 | --- | --- |
-| 0.4.x | yes |
+| 0.5.x | yes |
+| 0.4.x | critical fixes until 2026-10-27 |
 | 0.3.x | critical fixes until 2026-10-26 |
 | 0.2.x | critical fixes until 2026-10-26 |
 | < 0.2 | no |
@@ -36,3 +37,8 @@ checks completed; it is not proof that the repository is safe.
 
 This tool provides deterministic policy checks; it is not a security
 certification and does not replace threat modeling or code review.
+
+Portable reports remove the absolute scan root but may still contain repository
+paths, redacted finding evidence, an opaque repository-scope fingerprint, and a
+declared source revision. Review reports before sharing them. Source-revision
+and producer fields are not signatures and do not establish authenticity.

@@ -101,13 +101,13 @@ class ScanSummary:
     score: int
     status: str
     scope_fingerprint: Optional[str] = None
+    source_revision: Optional[str] = None
     counts: Dict[str, int] = field(default_factory=dict)
     complete: bool = True
     discovery_issues: List[DiscoveryIssue] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self, portable: bool = False) -> Dict[str, object]:
         data: Dict[str, object] = {
-            "root": self.root,
             "scanned_files": self.scanned_files,
             "instruction_files": self.instruction_files,
             "mcp_configs": self.mcp_configs,
@@ -118,8 +118,12 @@ class ScanSummary:
             "complete": self.complete,
             "discovery_issues": [issue.to_dict() for issue in self.discovery_issues],
         }
+        if not portable:
+            data["root"] = self.root
         if self.scope_fingerprint:
             data["scope_fingerprint"] = self.scope_fingerprint
+        if self.source_revision:
+            data["source_revision"] = self.source_revision
         return data
 
 
@@ -128,14 +132,14 @@ class ScanResult:
     summary: ScanSummary
     findings: List[Finding]
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self, portable: bool = False) -> Dict[str, object]:
         return {
             "schema_version": 1,
             "tool": {
                 "name": "agent-hygiene",
                 "version": __version__,
             },
-            "summary": self.summary.to_dict(),
+            "summary": self.summary.to_dict(portable=portable),
             "findings": [finding.to_dict() for finding in self.findings],
         }
 

@@ -30,6 +30,7 @@ class ActionInputTests(unittest.TestCase):
                     "fail_on": "high",
                     "baseline": "baseline.json",
                     "sarif": "report.sarif",
+                    "json": "report.json",
                 },
             )
 
@@ -37,6 +38,7 @@ class ActionInputTests(unittest.TestCase):
             self.assertEqual(values["min_score"], "85")
             self.assertEqual(values["baseline"], str((workspace / "baseline.json").resolve()))
             self.assertEqual(values["sarif"], str((workspace / "report.sarif").resolve()))
+            self.assertEqual(values["json"], str((workspace / "report.json").resolve()))
 
     def test_score_and_severity_are_strictly_validated(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -45,6 +47,7 @@ class ActionInputTests(unittest.TestCase):
                 "path": ".",
                 "baseline": "",
                 "sarif": "",
+                "json": "",
                 "fail_on": "high",
                 "min_score": "85; echo unsafe",
             }
@@ -65,6 +68,7 @@ class ActionInputTests(unittest.TestCase):
                 "fail_on": "high",
                 "baseline": "",
                 "sarif": "",
+                "json": "",
             }
 
             with self.assertRaisesRegex(VALIDATOR.InputError, "inside"):
@@ -83,6 +87,7 @@ class ActionInputTests(unittest.TestCase):
                 "fail_on": "high",
                 "baseline": "baseline.json",
                 "sarif": "",
+                "json": "",
             }
 
             with self.assertRaisesRegex(VALIDATOR.InputError, "regular file"):
@@ -102,6 +107,7 @@ class ActionInputTests(unittest.TestCase):
                     "AGENT_HYGIENE_INPUT_MIN_SCORE": "85",
                     "AGENT_HYGIENE_INPUT_FAIL_ON": "high",
                     "AGENT_HYGIENE_INPUT_SARIF": "",
+                    "AGENT_HYGIENE_INPUT_JSON": "",
                     "AGENT_HYGIENE_INPUT_BASELINE": "",
                 }
             )
@@ -117,12 +123,37 @@ class ActionInputTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 2)
             self.assertFalse(sentinel.exists())
 
+    def test_outputs_cannot_overwrite_each_other_or_the_baseline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            (workspace / "baseline.json").write_text("{}", encoding="utf-8")
+            values = {
+                "path": ".",
+                "min_score": "85",
+                "fail_on": "high",
+                "baseline": "baseline.json",
+                "sarif": "report.json",
+                "json": "report.json",
+            }
+
+            with self.assertRaisesRegex(VALIDATOR.InputError, "different paths"):
+                VALIDATOR.validate(workspace, values)
+
+            values["sarif"] = "baseline.json"
+            values["json"] = ""
+            with self.assertRaisesRegex(VALIDATOR.InputError, "different paths"):
+                VALIDATOR.validate(workspace, values)
+
     def test_action_run_blocks_do_not_interpolate_inputs(self):
         action = (REPOSITORY_ROOT / "action.yml").read_text(encoding="utf-8")
 
         self.assertNotRegex(action, re.compile(r"run:.*\$\{\{\s*inputs\."))
         run_block = action.split("run: |", 1)[1].split("\nbranding:", 1)[0]
         self.assertNotIn("${{ inputs.", run_block)
+        self.assertIn("--portable", run_block)
+        self.assertIn('--source-revision "$AGENT_HYGIENE_SOURCE_REVISION"', run_block)
+        self.assertIn("AGENT_HYGIENE_INPUT_JSON", action)
+        self.assertIn("steps.validate.outputs.json", action)
 
     def test_repository_workflows_pin_actions_to_full_commits(self):
         workflows = REPOSITORY_ROOT / ".github" / "workflows"
