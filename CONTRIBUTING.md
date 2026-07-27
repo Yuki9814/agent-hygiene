@@ -9,6 +9,8 @@ PYTHONPATH=src python -m unittest discover -s tests
 PYTHONPATH=src python -m agent_hygiene evaluate tests/corpus/manifest.json
 PYTHONPATH=src python -m agent_hygiene evidence evidence/v0.4.0 --format json
 PYTHONPATH=src python -m agent_hygiene scan .
+PYTHONPATH=src python tools/generate_patchhive_fixture.py findings
+PYTHONPATH=src python tools/generate_patchhive_fixture.py clean-rerun
 PYTHONPATH=src python tools/benchmark_large_repo.py --format json
 python -m pip install build==1.2.2.post1
 python -m build
@@ -44,6 +46,10 @@ paths, or sensitive SARIF evidence. Public-canary entries require explicit
 consent and a fixed 40-character commit revision. Store only the bounded,
 versioned manifest, observation, review, and adjudication documents described
 in [docs/evidence.md](docs/evidence.md).
+
+Changes to portable JSON or source-revision metadata must update both committed
+files under `examples/patchhive/` and keep their generator test exact. These are
+synthetic interoperability fixtures, never external-use evidence.
 
 ## Review and releases
 

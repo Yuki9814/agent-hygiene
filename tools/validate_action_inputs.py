@@ -53,12 +53,27 @@ def validate(workspace: Path, values: Dict[str, str]) -> Dict[str, str]:
         kind="output",
         allow_empty=True,
     )
+    json_output = _inside_workspace(
+        workspace,
+        values.get("json", ""),
+        "json",
+        kind="output",
+        allow_empty=True,
+    )
+    _ensure_distinct_paths(
+        {
+            "baseline": baseline,
+            "sarif": sarif,
+            "json": json_output,
+        }
+    )
     return {
         "path": scan_path,
         "min_score": str(min_score_number),
         "fail_on": fail_on,
         "baseline": baseline,
         "sarif": sarif,
+        "json": json_output,
     }
 
 
@@ -78,13 +93,21 @@ def main(argv=None) -> int:
         "min_score": os.environ.get("AGENT_HYGIENE_INPUT_MIN_SCORE", ""),
         "fail_on": os.environ.get("AGENT_HYGIENE_INPUT_FAIL_ON", ""),
         "sarif": os.environ.get("AGENT_HYGIENE_INPUT_SARIF", ""),
+        "json": os.environ.get("AGENT_HYGIENE_INPUT_JSON", ""),
         "baseline": os.environ.get("AGENT_HYGIENE_INPUT_BASELINE", ""),
     }
     try:
         validated = validate(Path(workspace_value), values)
         output_path = Path(args[0])
         with output_path.open("a", encoding="utf-8") as output:
-            for key in ("path", "min_score", "fail_on", "sarif", "baseline"):
+            for key in (
+                "path",
+                "min_score",
+                "fail_on",
+                "sarif",
+                "json",
+                "baseline",
+            ):
                 output.write(f"{key}={validated[key]}\n")
     except (InputError, OSError) as exc:
         print(f"agent-hygiene action: invalid input: {exc}", file=sys.stderr)
@@ -135,6 +158,16 @@ def _inside_workspace(
             raise InputError(f"{label} parent must be a directory")
 
     return str(resolved)
+
+
+def _ensure_distinct_paths(paths: Dict[str, str]) -> None:
+    populated = [(label, value) for label, value in paths.items() if value]
+    for index, (left_label, left_path) in enumerate(populated):
+        for right_label, right_path in populated[index + 1 :]:
+            if left_path == right_path:
+                raise InputError(
+                    f"{left_label} and {right_label} must use different paths"
+                )
 
 
 if __name__ == "__main__":

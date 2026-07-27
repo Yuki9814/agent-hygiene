@@ -16,7 +16,7 @@ published GitHub wheel:
 
 ```bash
 python -m pip install \
-  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.4.1/agent_hygiene-0.4.1-py3-none-any.whl
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.5.0/agent_hygiene-0.5.0-py3-none-any.whl
 agent-hygiene scan .
 ```
 
@@ -59,6 +59,9 @@ run behaves.
 ```bash
 agent-hygiene scan .
 agent-hygiene scan . --format json --output agent-hygiene.json
+agent-hygiene scan . --format json --portable \
+  --source-revision "$(git rev-parse --verify HEAD)" \
+  --output agent-hygiene.json
 agent-hygiene scan . --format sarif --output agent-hygiene.sarif
 agent-hygiene scan . --min-score 90 --fail-on high
 agent-hygiene baseline . --output .agent-hygiene-baseline.json
@@ -99,17 +102,33 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Pin an existing release. Review release notes before upgrading.
-      - uses: Yuki9814/agent-hygiene@v0.4.1
+      - id: hygiene
+        uses: Yuki9814/agent-hygiene@v0.5.0
         with:
           min-score: "85"
           fail-on: high
           sarif: agent-hygiene.sarif
+          json: agent-hygiene.json
           baseline: .agent-hygiene-baseline.json
       - uses: github/codeql-action/upload-sarif@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
         if: always()
         with:
           sarif_file: agent-hygiene.sarif
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: agent-hygiene-json
+          path: ${{ steps.hygiene.outputs.json }}
+          if-no-files-found: error
 ```
+
+The optional `json` input creates a portable report before the final severity
+gate runs. It omits the absolute checkout root and records the workflow commit
+as a declared source revision. Download that artifact and preview it locally in
+[PatchHive](https://yuki9814.github.io/PatchHive/); no scan content is sent by
+PatchHive. The producer and revision fields are declarations, not a signature
+or proof of authenticity. See [docs/patchhive.md](docs/patchhive.md) for the
+frozen cross-project fixtures and exact handoff contract.
 
 Treat `.agent-hygiene.json`, baselines, inline suppressions, and the workflow as
 policy code: a pull request can propose changes to them. This repository's
@@ -152,6 +171,8 @@ Fix: Replace shell wrappers with a direct executable plus fixed arguments.
 agent-hygiene scan [path]
   --format text|json|markdown|sarif
   --output FILE
+  --portable
+  --source-revision HEX
   --min-score NUMBER
   --fail-on none|low|medium|high|critical
   --ignore-rule RULE_ID
