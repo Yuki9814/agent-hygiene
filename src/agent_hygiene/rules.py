@@ -3,6 +3,7 @@ import unicodedata
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
+from .line_endings import split_sarif_lines
 from .models import Document, Finding
 from .redaction import redact_secrets
 from .safe_json import JSONSafetyError, strict_json_loads
@@ -186,7 +187,7 @@ def repository_rules(docs: List[Document]) -> List[Finding]:
 
 
 def hidden_unicode(doc: Document) -> Iterator[Finding]:
-    for line_no, line in enumerate(doc.text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(doc.text), start=1):
         for char in line:
             codepoint = ord(char)
             category = unicodedata.category(char)
@@ -207,7 +208,7 @@ def hidden_unicode(doc: Document) -> Iterator[Finding]:
 
 
 def prompt_override(doc: Document) -> Iterator[Finding]:
-    for line_no, line in enumerate(doc.text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(doc.text), start=1):
         for pattern in PROMPT_OVERRIDE_PATTERNS:
             match = pattern.search(line)
             if match:
@@ -224,7 +225,7 @@ def prompt_override(doc: Document) -> Iterator[Finding]:
 
 
 def secret_literals(doc: Document) -> Iterator[Finding]:
-    for line_no, line in enumerate(doc.text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(doc.text), start=1):
         if _looks_like_documentation_placeholder(line):
             continue
         for pattern in SECRET_PATTERNS:
@@ -243,7 +244,7 @@ def secret_literals(doc: Document) -> Iterator[Finding]:
 
 
 def dangerous_commands(doc: Document) -> Iterator[Finding]:
-    for line_no, line in enumerate(doc.text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(doc.text), start=1):
         for pattern in DANGEROUS_COMMAND_PATTERNS:
             match = pattern.search(line)
             if match:
@@ -260,7 +261,7 @@ def dangerous_commands(doc: Document) -> Iterator[Finding]:
 
 
 def network_exfiltration(doc: Document) -> Iterator[Finding]:
-    for line_no, line in enumerate(doc.text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(doc.text), start=1):
         match = EXFIL_PATTERN.search(line)
         if match:
             yield finding(
@@ -297,7 +298,7 @@ def instruction_quality(doc: Document, root: Path) -> Iterator[Finding]:
         )
 
     vague_lines = []
-    for line_no, line in enumerate(doc.text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(doc.text), start=1):
         if VAGUE_PATTERN.search(line) and not CONCRETE_PATTERN.search(line):
             vague_lines.append((line_no, line.strip()))
     if len(vague_lines) >= 3:
@@ -566,7 +567,7 @@ def _looks_like_documentation_placeholder(text: str) -> bool:
 
 
 def _path_spans(text: str) -> Iterator[Tuple[int, str]]:
-    for line_no, line in enumerate(text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(text), start=1):
         for match in PATH_SPAN_PATTERN.finditer(line):
             yield line_no, match.group(1)
 
@@ -586,7 +587,7 @@ def _looks_like_repo_path(value: str) -> bool:
 def _line_for_text(text: str, needle: str) -> int:
     if not needle:
         return 1
-    for line_no, line in enumerate(text.splitlines(), start=1):
+    for line_no, line in enumerate(split_sarif_lines(text), start=1):
         if needle in line:
             return line_no
     return 1

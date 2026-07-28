@@ -30,6 +30,7 @@ class Document:
     relative_path: str
     kind: str
     text: str
+    truncated: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,11 @@ class Finding:
     message: str
     remediation: str
     evidence: Optional[str] = None
+    primary_location_line_hash: Optional[str] = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         for field_name in ("title", "message", "remediation", "evidence"):

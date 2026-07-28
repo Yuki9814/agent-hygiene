@@ -1,3 +1,4 @@
+import codecs
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -53,8 +54,18 @@ def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
             declared_size = path.stat().st_size
             with path.open("rb") as stream:
                 data = stream.read(MAX_FILE_BYTES + 1)
-            if declared_size > MAX_FILE_BYTES or len(data) > MAX_FILE_BYTES:
-                text = data[:MAX_FILE_BYTES].decode("utf-8", errors="replace")
+            truncated = (
+                declared_size > MAX_FILE_BYTES
+                or len(data) > MAX_FILE_BYTES
+            )
+            if truncated:
+                decoder = codecs.getincrementaldecoder("utf-8")(
+                    errors="replace"
+                )
+                text = decoder.decode(
+                    data[:MAX_FILE_BYTES],
+                    final=False,
+                )
                 issues.append(
                     DiscoveryIssue(
                         path=relative_path,
@@ -79,6 +90,7 @@ def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
                 relative_path=relative_path,
                 kind=kind,
                 text=text,
+                truncated=truncated,
             )
         )
     return DiscoveryResult(documents=docs, issues=issues)

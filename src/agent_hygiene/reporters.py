@@ -216,7 +216,14 @@ def _sarif_result(finding: Finding) -> Dict[str, object]:
             }
         ],
     }
-    result["partialFingerprints"] = {"agentHygieneFingerprint/v1": finding.fingerprint()}
+    partial_fingerprints = {
+        "agentHygieneFingerprint/v1": finding.fingerprint(),
+    }
+    if finding.primary_location_line_hash is not None:
+        partial_fingerprints[
+            "primaryLocationLineHash"
+        ] = finding.primary_location_line_hash
+    result["partialFingerprints"] = partial_fingerprints
     result["properties"] = {
         "severity": finding.severity,
         "remediation": finding.remediation,

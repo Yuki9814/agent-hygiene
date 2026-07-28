@@ -16,7 +16,7 @@ published GitHub wheel:
 
 ```bash
 python -m pip install \
-  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.5.0/agent_hygiene-0.5.0-py3-none-any.whl
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.5.1/agent_hygiene-0.5.1-py3-none-any.whl
 agent-hygiene scan .
 ```
 
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Pin an existing release. Review release notes before upgrading.
       - id: hygiene
-        uses: Yuki9814/agent-hygiene@v0.5.0
+        uses: Yuki9814/agent-hygiene@v0.5.1
         with:
           min-score: "85"
           fail-on: high
@@ -311,8 +311,13 @@ repository-relative. When a GitHub repository identity or safe Git origin is
 available, JSON and SARIF include the same scope fingerprint so consumers can
 reconcile formats across checkout locations without encoding the absolute scan
 root. SARIF remains version 2.1.0, retains
-`agentHygieneFingerprint/v1`, and includes the tool version, severity, and
-remediation properties.
+`agentHygieneFingerprint/v1`, adds GitHub code scanning's
+`primaryLocationLineHash` when the bounded scan contains its complete context,
+and includes the tool version, severity, and remediation properties. The
+location hash keeps alerts stable when unrelated lines are inserted before a
+finding and distinguishes repeated matching contexts in one file. See
+[SARIF interoperability](docs/sarif.md) for the exact contract, oversized-file
+behavior, and privacy boundary.
 
 Evidence is redacted before output and fingerprinting. Upgrading from an older
 release can therefore change the fingerprint of a finding whose evidence

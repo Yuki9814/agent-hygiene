@@ -4,6 +4,8 @@ import stat
 from pathlib import Path
 from typing import Optional
 
+from .line_endings import sarif_line_number
+
 
 class JSONSafetyError(Exception):
     """Raised when untrusted JSON cannot be read and parsed safely."""
@@ -25,9 +27,10 @@ def strict_json_loads(text: str) -> object:
     try:
         return json.loads(text, parse_constant=_reject_constant)
     except json.JSONDecodeError as exc:
+        line = sarif_line_number(text, exc.pos)
         raise JSONSafetyError(
-            f"is not valid JSON at line {exc.lineno}",
-            line=exc.lineno,
+            f"is not valid JSON at line {line}",
+            line=line,
         ) from exc
     except _NonStandardConstant as exc:
         raise JSONSafetyError("contains a non-standard numeric constant") from exc
@@ -78,12 +81,11 @@ def _reject_constant(value: str) -> object:
 def _preflight_json_structure(text: str) -> None:
     """Enforce parser-independent depth and trailing-comma behavior."""
     depth = 0
-    line = 1
     in_string = False
     escaped = False
     pending_comma = False
 
-    for character in text:
+    for offset, character in enumerate(text):
         if in_string:
             if escaped:
                 escaped = False
@@ -93,6 +95,7 @@ def _preflight_json_structure(text: str) -> None:
                 in_string = False
         elif character not in " \t\r\n":
             if pending_comma and character in "]}":
+                line = sarif_line_number(text, offset)
                 raise JSONSafetyError(
                     f"is not valid JSON at line {line}",
                     line=line,
@@ -103,12 +106,10 @@ def _preflight_json_structure(text: str) -> None:
             elif character in "[{":
                 depth += 1
                 if depth > MAX_JSON_NESTING:
+                    line = sarif_line_number(text, offset)
                     raise JSONSafetyError(
                         "JSON exceeds safe parser limits",
                         line=line,
                     )
             elif character in "]}" and depth:
                 depth -= 1
-
-        if character == "\n":
-            line += 1
