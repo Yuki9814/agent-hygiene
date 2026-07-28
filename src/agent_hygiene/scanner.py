@@ -1,11 +1,13 @@
+from dataclasses import replace
 from fnmatch import fnmatch
 from pathlib import Path
 import re
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 from .baseline import BaselineError, load_baseline
 from .config import Config
 from .discovery import discover
+from .line_endings import split_sarif_lines
 from .models import (
     SEVERITY_PENALTY,
     DiscoveryIssue,
@@ -16,6 +18,7 @@ from .models import (
     count_by_severity,
 )
 from .rules import repository_rules, scan_document
+from .sarif_fingerprints import primary_location_line_hashes
 from .scope import repository_scope_fingerprint
 
 
@@ -48,6 +51,7 @@ def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
         config,
         baseline_fingerprints,
     )
+    findings = _attach_location_fingerprints(findings, docs_by_path)
 
     findings.sort(key=lambda item: (-_severity_rank(item.severity), item.path, item.line, item.rule_id))
     score = _score(findings)
@@ -65,6 +69,45 @@ def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
         discovery_issues=discovery_issues,
     )
     return ScanResult(summary=summary, findings=findings)
+
+
+def _attach_location_fingerprints(
+    findings: List[Finding],
+    docs_by_path: Dict[str, Document],
+) -> List[Finding]:
+    lines_by_path: Dict[str, Set[int]] = {}
+    for finding in findings:
+        lines_by_path.setdefault(finding.path, set()).add(finding.line)
+
+    fingerprints: Dict[Tuple[str, int], str] = {}
+    for relative_path, line_numbers in lines_by_path.items():
+        document = docs_by_path.get(relative_path)
+        if document is None:
+            raise RuntimeError(
+                f"cannot fingerprint finding outside scanned documents: {relative_path}"
+            )
+        document_hashes = primary_location_line_hashes(
+            document.text,
+            line_numbers,
+            complete=not document.truncated,
+        )
+        missing_lines = line_numbers.difference(document_hashes)
+        if missing_lines and not document.truncated:
+            raise RuntimeError(
+                f"cannot fingerprint invalid line in scanned document: {relative_path}"
+            )
+        for line_number, hash_value in document_hashes.items():
+            fingerprints[(relative_path, line_number)] = hash_value
+
+    return [
+        replace(
+            finding,
+            primary_location_line_hash=fingerprints.get(
+                (finding.path, finding.line)
+            ),
+        )
+        for finding in findings
+    ]
 
 
 def _score(findings: List[Finding]) -> int:
@@ -119,7 +162,7 @@ def _matches_ignored_path(finding: Finding, patterns: List[str]) -> bool:
 
 
 def _line_has_ignore_directive(doc: Document, finding: Finding) -> bool:
-    lines = doc.text.splitlines()
+    lines = split_sarif_lines(doc.text)
     index = finding.line - 1
     if 0 <= index < len(lines) and _directive_allows(lines[index], finding.rule_id, next_line=False):
         return True

@@ -31,9 +31,11 @@ requests or call an LLM. Runtime code uses only the Python standard library.
 The scanner treats relevant symlinks, read failures, and oversized files as an
 incomplete scan. Configuration, baselines, and JSON inputs have strict
 regular-file, repository-boundary, byte, and parser limits. Report evidence is
-redacted before fingerprints or output are created, and human-readable output
-escapes control characters. A passing result means the configured deterministic
-checks completed; it is not proof that the repository is safe.
+redacted before finding fingerprints or output are created. SARIF's
+`primaryLocationLineHash` is derived from bounded source text, but the report
+does not embed that text or an absolute source path. Human-readable output
+escapes control characters. A passing result means the configured
+deterministic checks completed; it is not proof that the repository is safe.
 
 This tool provides deterministic policy checks; it is not a security
 certification and does not replace threat modeling or code review.

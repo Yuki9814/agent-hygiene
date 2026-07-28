@@ -2,6 +2,23 @@
 
 All notable changes are documented here. This project follows semantic versioning.
 
+## 0.5.1 - 2026-07-28
+
+- Add GitHub-compatible SARIF `primaryLocationLineHash` values while retaining
+  `agentHygieneFingerprint/v1`, JSON schema 1, baseline version 2, stable rule
+  IDs, and the existing finding-fingerprint algorithm.
+- Normalize CR, LF, and CRLF, hash UTF-16 code units, ignore ASCII spaces and
+  tabs, and disambiguate repeated hashes using the same `:N` suffix convention
+  as the CodeQL Action uploader.
+- Keep CR/LF line locations aligned across rules, suppressions, JSON errors,
+  and SARIF. On an oversized file, emit a location hash only when its complete
+  100-unit context is inside the bounded scan prefix; the invocation remains
+  unsuccessful.
+- Correcting line semantics can change the line and existing finding
+  fingerprint for files that used VT, FF, NEL, LINE SEPARATOR, or PARAGRAPH
+  SEPARATOR as a line break. Review and regenerate those narrow baseline
+  entries after upgrading.
+
 ## 0.5.0 - 2026-07-27
 
 - Add an optional GitHub Action `json` input and output so a protected CI run
