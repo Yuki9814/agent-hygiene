@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable, List, Sequence
 
 from .models import DiscoveryIssue, Document
+from .safe_files import SafeFileError, read_bounded_regular_file
 
 
 INSTRUCTION_NAMES = {
@@ -41,56 +42,72 @@ def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
         if kind is None:
             continue
         relative_path = path.relative_to(root).as_posix()
-        if path.is_symlink():
-            issues.append(
-                DiscoveryIssue(
-                    path=relative_path,
-                    reason="symlink",
-                    message="Skipped symbolic link; scan the target explicitly if it is trusted.",
-                )
-            )
-            continue
         try:
-            declared_size = path.stat().st_size
-            with path.open("rb") as stream:
-                data = stream.read(MAX_FILE_BYTES + 1)
-            truncated = (
-                declared_size > MAX_FILE_BYTES
-                or len(data) > MAX_FILE_BYTES
+            read_result = read_bounded_regular_file(
+                path,
+                MAX_FILE_BYTES,
+                truncate=True,
             )
-            if truncated:
-                decoder = codecs.getincrementaldecoder("utf-8")(
-                    errors="replace"
-                )
-                text = decoder.decode(
-                    data[:MAX_FILE_BYTES],
-                    final=False,
-                )
+        except SafeFileError as exc:
+            if exc.reason == "symlink":
                 issues.append(
                     DiscoveryIssue(
                         path=relative_path,
-                        reason="file_too_large",
-                        message=f"Scanned only the first {MAX_FILE_BYTES} bytes.",
+                        reason="symlink",
+                        message=(
+                            "Skipped symbolic link; scan the target explicitly "
+                            "if it is trusted."
+                        ),
                     )
                 )
-            else:
-                text = data.decode("utf-8", errors="replace")
-        except OSError as exc:
+                continue
+            if exc.reason == "not_regular":
+                issues.append(
+                    DiscoveryIssue(
+                        path=relative_path,
+                        reason="read_error",
+                        message=(
+                            "Skipped non-regular file; agent-controlled inputs "
+                            "must be regular files."
+                        ),
+                    )
+                )
+                continue
             issues.append(
                 DiscoveryIssue(
                     path=relative_path,
                     reason="read_error",
-                    message=f"Could not read file: {exc.__class__.__name__}.",
+                    message=(
+                        "Could not read file: "
+                        f"{exc.error_name or exc.reason}."
+                    ),
                 )
             )
             continue
+        if read_result.truncated:
+            decoder = codecs.getincrementaldecoder("utf-8")(
+                errors="replace"
+            )
+            text = decoder.decode(
+                read_result.data,
+                final=False,
+            )
+            issues.append(
+                DiscoveryIssue(
+                    path=relative_path,
+                    reason="file_too_large",
+                    message=f"Scanned only the first {MAX_FILE_BYTES} bytes.",
+                )
+            )
+        else:
+            text = read_result.data.decode("utf-8", errors="replace")
         docs.append(
             Document(
                 path=path,
                 relative_path=relative_path,
                 kind=kind,
                 text=text,
-                truncated=truncated,
+                truncated=read_result.truncated,
             )
         )
     return DiscoveryResult(documents=docs, issues=issues)

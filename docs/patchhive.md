@@ -34,7 +34,7 @@ The Action can emit the same portable file before its final severity gate:
 
 ```yaml
 - id: hygiene
-  uses: Yuki9814/agent-hygiene@v0.5.1
+  uses: Yuki9814/agent-hygiene@v0.5.2
   with:
     min-score: "85"
     fail-on: high

@@ -16,7 +16,7 @@ published GitHub wheel:
 
 ```bash
 python -m pip install \
-  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.5.1/agent_hygiene-0.5.1-py3-none-any.whl
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.5.2/agent_hygiene-0.5.2-py3-none-any.whl
 agent-hygiene scan .
 ```
 
@@ -73,15 +73,23 @@ Exit codes:
 - `1`: findings exceeded `--fail-on` or score fell below `--min-score`
 - `2`: invalid usage, unreadable output, or an incomplete scan
 
-The scanner fails closed. Symlinked, unreadable, or oversized agent-controlled
-files make the result `incomplete`; they never produce a passing `ready` status
-or a successful SARIF invocation. This distinguishes a clean scan from a scan
-that could not inspect all relevant inputs.
+The scanner fails closed. Symlinked, non-regular, unreadable, or oversized
+agent-controlled files make the result `incomplete`; they never produce a
+passing `ready` status or a successful SARIF invocation. Relevant inputs are
+opened with bounded, descriptor-verified reads, so a FIFO, Unix-domain socket,
+or final-component file replacement cannot be mistaken for a successfully
+scanned regular file. POSIX opens also require nonblocking mode, which keeps a
+special-file replacement from hanging the open; non-POSIX platforms retain
+the regular-file and identity checks but do not claim the same no-hang
+guarantee for platform-specific endpoints. This distinguishes a clean scan
+from a scan that could not inspect all relevant inputs.
 
 Repository configuration and baselines are treated as untrusted policy inputs:
 they must be bounded regular files, remain inside the scanned repository, and
 contain strict JSON. An unsafe configuration exits with code `2`; an unsafe
 baseline is reported as an incomplete scan and is never used for suppression.
+Evaluation and evidence inputs use the same regular-file boundary and return
+exit code `2` when that boundary cannot be verified.
 
 ## GitHub Action
 
@@ -103,7 +111,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Pin an existing release. Review release notes before upgrading.
       - id: hygiene
-        uses: Yuki9814/agent-hygiene@v0.5.1
+        uses: Yuki9814/agent-hygiene@v0.5.2
         with:
           min-score: "85"
           fail-on: high

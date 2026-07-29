@@ -1,7 +1,6 @@
 import json
 import math
 import re
-import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -10,6 +9,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from .config import Config
 from .discovery import MAX_FILE_BYTES
 from .rules import RULES
+from .safe_files import SafeFileError, read_bounded_regular_file
 from .safe_json import JSONSafetyError, strict_json_loads
 from .scanner import scan
 
@@ -125,8 +125,9 @@ def evaluate_manifest(
     min_precision: Optional[float] = None,
     min_recall: Optional[float] = None,
 ) -> EvaluationResult:
-    manifest_path = manifest_path.resolve()
+    manifest_path = manifest_path.absolute()
     data = _load_manifest(manifest_path)
+    manifest_root = manifest_path.parent.resolve()
     gates = data.get("gates")
     if not isinstance(gates, dict):
         raise EvaluationError("manifest gates must be an object")
@@ -148,7 +149,7 @@ def evaluate_manifest(
     for index, raw_case in enumerate(raw_cases):
         evaluated.append(
             _evaluate_case(
-                manifest_path.parent,
+                manifest_root,
                 raw_case,
                 index,
                 seen_ids,
@@ -196,14 +197,27 @@ def render_evaluation(result: EvaluationResult, output_format: str = "text") -> 
 
 def _load_manifest(path: Path) -> Dict[str, object]:
     try:
-        with path.open("rb") as manifest:
-            raw = manifest.read(MAX_MANIFEST_BYTES + 1)
-    except FileNotFoundError as exc:
-        raise EvaluationError(f"manifest does not exist: {path.name}") from exc
-    except OSError as exc:
-        raise EvaluationError(f"manifest could not be read: {exc.__class__.__name__}") from exc
+        read_result = read_bounded_regular_file(path, MAX_MANIFEST_BYTES)
+    except SafeFileError as exc:
+        if exc.reason == "too_large":
+            raise EvaluationError(
+                f"manifest exceeds {MAX_MANIFEST_BYTES} bytes"
+            ) from exc
+        if exc.reason == "missing":
+            raise EvaluationError(
+                f"manifest does not exist: {path.name}"
+            ) from exc
+        if exc.reason in {"symlink", "not_regular", "changed"}:
+            raise EvaluationError(
+                "manifest must be a stable regular file"
+            ) from exc
+        raise EvaluationError(
+            "manifest could not be read safely: "
+            f"{exc.error_name or exc.reason}"
+        ) from exc
 
-    if len(raw) > MAX_MANIFEST_BYTES:
+    raw = read_result.data
+    if read_result.truncated:
         raise EvaluationError(f"manifest exceeds {MAX_MANIFEST_BYTES} bytes")
     try:
         text = raw.decode("utf-8")
@@ -247,33 +261,46 @@ def _evaluate_case(
             f"case {case_id} cannot contain more than {MAX_FILES_PER_CASE} files"
         )
 
-    copies: List[Tuple[Path, PurePosixPath]] = []
+    copies: List[Tuple[bytes, PurePosixPath]] = []
     targets: Set[str] = set()
     for file_index, raw_file in enumerate(raw_files):
         if not isinstance(raw_file, dict):
             raise EvaluationError(f"case {case_id} files[{file_index}] must be an object")
-        source = _source_path(manifest_root, raw_file.get("source"), case_id)
+        source, relative_source = _source_path(
+            manifest_root,
+            raw_file.get("source"),
+            case_id,
+        )
         try:
-            budget.consume(source.stat().st_size)
-        except OSError as exc:
+            read_result = read_bounded_regular_file(
+                source,
+                MAX_FILE_BYTES,
+            )
+        except SafeFileError as exc:
+            if exc.reason == "too_large":
+                raise EvaluationError(
+                    f"case {case_id} source exceeds {MAX_FILE_BYTES} bytes: "
+                    f"{relative_source.as_posix()}"
+                ) from exc
             raise EvaluationError(
-                f"case {case_id} source could not be inspected: "
-                f"{exc.__class__.__name__}"
+                f"case {case_id} source could not be read safely: "
+                f"{exc.error_name or exc.reason}"
             ) from exc
+        budget.consume(len(read_result.data))
         target = _target_path(raw_file.get("target"), case_id)
         if target.as_posix() in targets:
             raise EvaluationError(f"case {case_id} repeats target {target.as_posix()}")
         targets.add(target.as_posix())
-        copies.append((source, target))
+        copies.append((read_result.data, target))
 
     expected = _expected_findings(raw_case.get("expected"), case_id, targets)
     with tempfile.TemporaryDirectory(prefix="agent-hygiene-corpus-") as tmp:
         root = Path(tmp)
         try:
-            for source, target in copies:
+            for content, target in copies:
                 destination = root.joinpath(*target.parts)
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, destination)
+                destination.write_bytes(content)
         except OSError as exc:
             raise EvaluationError(
                 f"case {case_id} could not stage fixtures: {exc.__class__.__name__}"
@@ -290,31 +317,24 @@ def _evaluate_case(
     return EvaluationCase(case_id=case_id, expected=expected, actual=actual)
 
 
-def _source_path(manifest_root: Path, raw: object, case_id: str) -> Path:
+def _source_path(
+    manifest_root: Path,
+    raw: object,
+    case_id: str,
+) -> Tuple[Path, PurePosixPath]:
     relative = _relative_path(raw, f"case {case_id} source")
     candidate = manifest_root.joinpath(*relative.parts)
     if candidate.is_symlink():
         raise EvaluationError(
             f"case {case_id} source is not a regular file: {relative.as_posix()}"
         )
-    source = candidate.resolve()
     try:
-        source.relative_to(manifest_root.resolve())
-    except ValueError as exc:
+        parent = candidate.parent.resolve(strict=True)
+        parent.relative_to(manifest_root.resolve())
+    except (OSError, RuntimeError, ValueError) as exc:
         raise EvaluationError(f"case {case_id} source escapes the corpus directory") from exc
-    if not source.is_file():
-        raise EvaluationError(f"case {case_id} source is not a regular file: {relative.as_posix()}")
-    try:
-        if source.stat().st_size > MAX_FILE_BYTES:
-            raise EvaluationError(
-                f"case {case_id} source exceeds {MAX_FILE_BYTES} bytes: "
-                f"{relative.as_posix()}"
-            )
-    except OSError as exc:
-        raise EvaluationError(
-            f"case {case_id} source could not be inspected: {exc.__class__.__name__}"
-        ) from exc
-    return source
+    source = parent / candidate.name
+    return source, relative
 
 
 def _target_path(raw: object, case_id: str) -> PurePosixPath:

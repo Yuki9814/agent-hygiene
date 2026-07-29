@@ -2,6 +2,17 @@
 
 All notable changes are documented here. This project follows semantic versioning.
 
+## 0.5.2 - 2026-07-29
+
+- Read scanner inputs, configuration, baselines, evaluation manifests and
+  fixtures, evidence documents, and review fixtures through one bounded
+  regular-file primitive.
+- Reject FIFOs, Unix-domain sockets, symlinks, and final-component file
+  replacements before reading. POSIX opens require nonblocking mode so a
+  special-file replacement cannot hang a scan or validation command.
+- Preserve existing rule IDs, finding fingerprints, JSON/SARIF contracts,
+  oversized-prefix behavior, UTF-8 handling, and zero runtime dependencies.
+
 ## 0.5.1 - 2026-07-28
 
 - Add GitHub-compatible SARIF `primaryLocationLineHash` values while retaining

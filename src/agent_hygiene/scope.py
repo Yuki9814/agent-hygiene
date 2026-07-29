@@ -2,10 +2,11 @@ import configparser
 import hashlib
 import os
 import re
-import stat
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlsplit
+
+from .safe_files import SafeFileError, read_bounded_regular_file
 
 
 MAX_GIT_CONFIG_BYTES = 256 * 1024
@@ -78,30 +79,14 @@ def _remote_identity(host: str, path: str) -> Optional[str]:
 
 
 def _read_bounded_regular_text(path: Path) -> Optional[str]:
-    if path.is_symlink():
-        return None
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
-    flags |= getattr(os, "O_BINARY", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
     try:
-        descriptor = os.open(path, flags)
-    except OSError:
-        return None
-
-    try:
-        info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_GIT_CONFIG_BYTES:
-            return None
-        with os.fdopen(descriptor, "rb") as stream:
-            descriptor = -1
-            raw = stream.read(MAX_GIT_CONFIG_BYTES + 1)
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-
-    if len(raw) > MAX_GIT_CONFIG_BYTES:
+        read_result = read_bounded_regular_file(
+            path,
+            MAX_GIT_CONFIG_BYTES,
+        )
+    except SafeFileError:
         return None
     try:
-        return raw.decode("utf-8")
+        return read_result.data.decode("utf-8")
     except UnicodeDecodeError:
         return None

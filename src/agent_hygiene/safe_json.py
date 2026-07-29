@@ -1,10 +1,9 @@
 import json
-import os
-import stat
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from .line_endings import sarif_line_number
+from .safe_files import SafeFileError, read_bounded_regular_file
 
 
 class JSONSafetyError(Exception):
@@ -39,39 +38,47 @@ def strict_json_loads(text: str) -> object:
 
 
 def read_bounded_json(path: Path, max_bytes: int) -> object:
-    if path.is_symlink():
-        raise JSONSafetyError("must not be a symbolic link")
+    data, _ = read_bounded_json_with_size(path, max_bytes)
+    return data
 
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
-    flags |= getattr(os, "O_BINARY", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
+
+def read_bounded_json_with_size(
+    path: Path,
+    max_bytes: int,
+) -> Tuple[object, int]:
     try:
-        descriptor = os.open(path, flags)
-    except OSError as exc:
-        raise JSONSafetyError(
-            f"could not be opened safely: {exc.__class__.__name__}"
-        ) from exc
-
-    try:
-        info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode):
-            raise JSONSafetyError("must be a regular file")
-        if info.st_size > max_bytes:
-            raise JSONSafetyError(f"exceeds the {max_bytes}-byte limit")
-        with os.fdopen(descriptor, "rb") as stream:
-            descriptor = -1
-            raw = stream.read(max_bytes + 1)
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-
-    if len(raw) > max_bytes:
-        raise JSONSafetyError(f"exceeds the {max_bytes}-byte limit")
+        read_result = read_bounded_regular_file(path, max_bytes)
+    except SafeFileError as exc:
+        raise _json_safety_error(exc, max_bytes) from exc
+    raw = read_result.data
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise JSONSafetyError("is not valid UTF-8") from exc
-    return strict_json_loads(text)
+    return strict_json_loads(text), len(raw)
+
+
+def _json_safety_error(
+    error: SafeFileError,
+    max_bytes: int,
+) -> JSONSafetyError:
+    if error.reason == "symlink":
+        return JSONSafetyError("must not be a symbolic link")
+    if error.reason == "not_regular":
+        return JSONSafetyError("must be a regular file")
+    if error.reason == "too_large":
+        return JSONSafetyError(f"exceeds the {max_bytes}-byte limit")
+    if error.reason == "changed":
+        return JSONSafetyError("changed while being opened")
+    if error.reason in {"missing", "open_error"}:
+        return JSONSafetyError(
+            "could not be opened safely: "
+            f"{error.error_name or error.reason}"
+        )
+    return JSONSafetyError(
+        "could not be read safely: "
+        f"{error.error_name or error.reason}"
+    )
 
 
 def _reject_constant(value: str) -> object:
