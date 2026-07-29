@@ -10,7 +10,12 @@ from urllib.parse import urlsplit
 
 from .redaction import redact_secrets
 from .rules import RULES
-from .safe_json import JSONSafetyError, read_bounded_json
+from .safe_files import SafeFileError, read_bounded_regular_file
+from .safe_json import (
+    JSONSafetyError,
+    read_bounded_json,
+    read_bounded_json_with_size,
+)
 
 
 EVIDENCE_SCHEMA_VERSION = 1
@@ -952,7 +957,6 @@ def _load_layer(root: Path, layer: str) -> List[Tuple[Path, object]]:
     if path.is_symlink() or not path.is_dir():
         raise EvidenceError(f"{layer} must be a regular directory")
     json_files: List[Path] = []
-    total_bytes = 0
     for child in path.iterdir():
         if child.name.startswith("."):
             raise EvidenceError(f"{layer} must not contain hidden files")
@@ -961,7 +965,7 @@ def _load_layer(root: Path, layer: str) -> List[Tuple[Path, object]]:
                 f"{layer}/{_escape_controls(child.name)} "
                 "must not be a symbolic link"
             )
-        if not child.is_file() or child.suffix != ".json":
+        if child.suffix != ".json":
             raise EvidenceError(f"{layer} may contain only regular .json files")
         json_files.append(child)
         if len(json_files) > MAX_DOCUMENTS_PER_LAYER:
@@ -969,24 +973,21 @@ def _load_layer(root: Path, layer: str) -> List[Tuple[Path, object]]:
                 f"{layer} cannot contain more than "
                 f"{MAX_DOCUMENTS_PER_LAYER} documents"
             )
-        try:
-            total_bytes += child.stat().st_size
-        except OSError as exc:
-            raise EvidenceError(
-                f"{layer}/{_escape_controls(child.name)} "
-                "could not be inspected safely"
-            ) from exc
+    documents: List[Tuple[Path, object]] = []
+    total_bytes = 0
+    for child in sorted(json_files, key=lambda item: item.name):
+        document, document_bytes = _read_json_with_size(
+            child,
+            MAX_EVIDENCE_DOCUMENT_BYTES,
+            f"{layer} document",
+        )
+        total_bytes += document_bytes
         if total_bytes > MAX_TOTAL_LAYER_BYTES:
             raise EvidenceError(
                 f"{layer} exceeds the {MAX_TOTAL_LAYER_BYTES}-byte layer limit"
             )
-    return [
-        (
-            path,
-            _read_json(path, MAX_EVIDENCE_DOCUMENT_BYTES, f"{layer} document"),
-        )
-        for path in sorted(json_files, key=lambda item: item.name)
-    ]
+        documents.append((child, document))
+    return documents
 
 
 def _validate_root_layout(root: Path) -> None:
@@ -1018,6 +1019,17 @@ def _read_json(path: Path, max_bytes: int, label: str) -> object:
         raise EvidenceError(f"{label} {exc}") from exc
 
 
+def _read_json_with_size(
+    path: Path,
+    max_bytes: int,
+    label: str,
+) -> Tuple[object, int]:
+    try:
+        return read_bounded_json_with_size(path, max_bytes)
+    except JSONSafetyError as exc:
+        raise EvidenceError(f"{label} {exc}") from exc
+
+
 def _safe_directory(path: Path, label: str) -> Path:
     if path.is_symlink():
         raise EvidenceError(f"{label} must not be a symbolic link")
@@ -1034,7 +1046,7 @@ def _resolved_parent(path: Path) -> Path:
     if path.is_symlink():
         raise EvidenceError("review manifest must not be a symbolic link")
     try:
-        return path.resolve(strict=True).parent
+        return path.parent.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise EvidenceError("review manifest could not be resolved safely") from exc
 
@@ -1045,31 +1057,31 @@ def _safe_source_path(root: Path, raw_path: str, label: str) -> Path:
     if candidate.is_symlink():
         raise EvidenceError(f"{label}.source must not be a symbolic link")
     try:
-        resolved = candidate.resolve(strict=True)
-        resolved.relative_to(root)
+        parent = candidate.parent.resolve(strict=True)
+        parent.relative_to(root)
     except (OSError, RuntimeError, ValueError) as exc:
         raise EvidenceError(
             f"{label}.source must stay within the review manifest directory"
         ) from exc
-    if not resolved.is_file():
-        raise EvidenceError(f"{label}.source must be a regular file")
-    return resolved
+    return parent / candidate.name
 
 
 def _read_fixture(path: Path, label: str) -> Tuple[str, int]:
     try:
-        size = path.stat().st_size
-        if size > MAX_FIXTURE_BYTES:
+        read_result = read_bounded_regular_file(path, MAX_FIXTURE_BYTES)
+    except SafeFileError as exc:
+        if exc.reason == "too_large":
             raise EvidenceError(
                 f"{label}.source exceeds the {MAX_FIXTURE_BYTES}-byte limit"
-            )
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise EvidenceError(f"{label}.source could not be read safely") from exc
-    if len(raw) > MAX_FIXTURE_BYTES:
+            ) from exc
+        if exc.reason in {"symlink", "not_regular", "changed"}:
+            raise EvidenceError(
+                f"{label}.source must be a stable regular file"
+            ) from exc
         raise EvidenceError(
-            f"{label}.source exceeds the {MAX_FIXTURE_BYTES}-byte limit"
-        )
+            f"{label}.source could not be read safely"
+        ) from exc
+    raw = read_result.data
     try:
         return raw.decode("utf-8"), len(raw)
     except UnicodeDecodeError as exc:

@@ -8,6 +8,7 @@ from unittest import mock
 from agent_hygiene.baseline import load_baseline, render_baseline
 from agent_hygiene.config import Config
 from agent_hygiene.discovery import _walk, discover
+from agent_hygiene.safe_files import SafeFileError
 from agent_hygiene.scanner import scan
 
 
@@ -92,7 +93,13 @@ class SecurityRegressionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "AGENTS.md").write_text("safe\n", encoding="utf-8")
-            with mock.patch("pathlib.Path.open", side_effect=PermissionError):
+            with mock.patch(
+                "agent_hygiene.discovery.read_bounded_regular_file",
+                side_effect=SafeFileError(
+                    "read_error",
+                    "PermissionError",
+                ),
+            ):
                 result = discover(root, [])
 
             self.assertEqual(result.documents, [])
