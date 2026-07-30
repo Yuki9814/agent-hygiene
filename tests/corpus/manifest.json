@@ -218,6 +218,22 @@
       ]
     },
     {
+      "id": "copilot-hook-inline-header",
+      "files": [
+        {
+          "source": "fixtures/positive/copilot-hook-inline-header.fixture",
+          "target": ".github/hooks/audit.json"
+        }
+      ],
+      "expected": [
+        {
+          "rule_id": "AH015",
+          "path": ".github/hooks/audit.json",
+          "line": 9
+        }
+      ]
+    },
+    {
       "id": "safe-instructions",
       "files": [
         {
@@ -247,6 +263,16 @@
         {
           "source": "fixtures/negative/safe-workflow.fixture",
           "target": ".github/workflows/check.yml"
+        }
+      ],
+      "expected": []
+    },
+    {
+      "id": "safe-copilot-hook",
+      "files": [
+        {
+          "source": "fixtures/negative/safe-copilot-hook.fixture",
+          "target": ".github/hooks/preflight.json"
         }
       ],
       "expected": []

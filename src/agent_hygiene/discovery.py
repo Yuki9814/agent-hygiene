@@ -24,6 +24,13 @@ MCP_NAMES = {
     "claude_desktop_config.json",
 }
 
+INLINE_HOOK_SETTINGS = {
+    ".github/copilot/settings.json",
+    ".github/copilot/settings.local.json",
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+}
+
 MAX_FILE_BYTES = 512 * 1024
 
 
@@ -117,6 +124,12 @@ def classify(root: Path, path: Path) -> str:
     rel = path.relative_to(root).as_posix()
     directory_parts = path.relative_to(root).parent.parts
     name = path.name
+
+    if (
+        directory_parts == (".github", "hooks")
+        and path.suffix == ".json"
+    ) or rel in INLINE_HOOK_SETTINGS:
+        return "agent_hook"
 
     if rel.startswith(".github/workflows/") and path.suffix in {".yml", ".yaml"}:
         return "workflow"
@@ -225,6 +238,22 @@ def _walk(
 
 def _could_be_relevant(directory_parts: Sequence[str], filename: str) -> bool:
     if filename in INSTRUCTION_NAMES or filename in MCP_NAMES:
+        return True
+
+    if (
+        tuple(directory_parts) == (".github", "hooks")
+        and filename.endswith(".json")
+    ):
+        return True
+    if (
+        tuple(directory_parts) == (".github", "copilot")
+        and filename in {"settings.json", "settings.local.json"}
+    ):
+        return True
+    if (
+        tuple(directory_parts) == (".claude",)
+        and filename in {"settings.json", "settings.local.json"}
+    ):
         return True
 
     prefix = tuple(directory_parts[:2])
