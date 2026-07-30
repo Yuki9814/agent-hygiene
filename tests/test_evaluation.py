@@ -25,10 +25,10 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(result.precision, 1.0)
         self.assertEqual(result.recall, 1.0)
-        self.assertEqual(result.true_positives, 13)
+        self.assertEqual(result.true_positives, 14)
         self.assertEqual(result.false_positives, 0)
         self.assertEqual(result.false_negatives, 0)
-        self.assertEqual(len(result.cases), 18)
+        self.assertEqual(len(result.cases), 20)
 
     def test_evaluation_json_has_a_versioned_stable_shape(self):
         payload = json.loads(render_evaluation(evaluate_manifest(CORPUS_MANIFEST), "json"))

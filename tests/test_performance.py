@@ -45,6 +45,11 @@ class PerformanceContractTests(unittest.TestCase):
             paths = [
                 "AGENTS.md",
                 ".github/workflows/nested/check.yml",
+                ".github/hooks/preflight.json",
+                ".github/copilot/settings.json",
+                ".github/copilot/settings.local.json",
+                ".claude/settings.json",
+                ".claude/settings.local.json",
                 ".github/copilot-instructions.md",
                 ".github/instructions/nested/team.instructions.md",
                 ".github/agents/nested/reviewer.md",
@@ -67,6 +72,9 @@ class PerformanceContractTests(unittest.TestCase):
             nested_noise = root / ".github" / "docs" / "copilot-instructions.md"
             nested_noise.parent.mkdir(parents=True, exist_ok=True)
             nested_noise.write_text("unrelated documentation\n", encoding="utf-8")
+            nested_hook_noise = root / ".github" / "hooks" / "nested" / "ignored.json"
+            nested_hook_noise.parent.mkdir(parents=True, exist_ok=True)
+            nested_hook_noise.write_text("{}\n", encoding="utf-8")
 
             with patch(
                 "agent_hygiene.discovery.os.walk",

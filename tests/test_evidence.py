@@ -578,7 +578,7 @@ class EvidenceContractTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertRegex(first["corpus_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(first["cases"][0]["case_id"], "C001")
-        self.assertEqual(first["cases"][-1]["case_id"], "C018")
+        self.assertEqual(first["cases"][-1]["case_id"], "C020")
         self.assertEqual(
             set(first["cases"][0]),
             {"case_id", "files"},

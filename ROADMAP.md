@@ -49,6 +49,9 @@ repository, external review, or adoption result.
   Copilot and Claude-compatible workflows.
 - [x] Discover supported agent instruction surfaces inside nested monorepo
   packages.
+- [x] Inspect repository-scoped GitHub Copilot command, HTTP, and prompt hook
+  configuration without treating reviewed direct script or session-start
+  prompt hooks as findings.
 - [x] Preserve stable rule IDs, output contracts, bounded reads, and the
   single-walk performance contract while expanding coverage.
 - [ ] Record sanitized real-world examples for the new surfaces through the

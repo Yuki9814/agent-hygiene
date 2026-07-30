@@ -1,7 +1,9 @@
 import re
 import unicodedata
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 from .line_endings import split_sarif_lines
 from .models import Document, Finding
@@ -80,6 +82,11 @@ RULES: Dict[str, Dict[str, str]] = {
         "severity": "medium",
         "help": "Fix the JSON syntax so MCP clients read the intended config.",
     },
+    "AH015": {
+        "name": "Risky GitHub Copilot hook",
+        "severity": "medium",
+        "help": "Keep hooks valid, avoid embedded secrets, and review outbound hook destinations.",
+    },
 }
 
 
@@ -144,6 +151,35 @@ PATH_SPAN_PATTERN = re.compile(r"`([^`]+)`")
 
 SENSITIVE_ENV_KEYS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL")
 
+HOOK_STDIN_UPLOAD_PATTERNS = (
+    re.compile(
+        r"\bcurl\b[^\n]{0,240}"
+        r"(?:(?:--data(?:-ascii|-binary|-raw)?|--json)(?:=|\s+)"
+        r"@(?:-|/dev/stdin)|"
+        r"-d(?:=|\s*)@(?:-|/dev/stdin)|"
+        r"(?:--upload-file|-T)(?:=|\s+)(?:-|/dev/stdin)|"
+        r"(?:--form|-F)(?:=|\s+)[\"']?[^=\s\"']+="
+        r"@(?:-|/dev/stdin)[\"']?)(?=\s|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bwget\b[^\n]{0,240}--post-file(?:=|\s+)-(?=\s|$)",
+        re.IGNORECASE,
+    ),
+)
+
+HOOK_ENV_REFERENCE_PATTERN = re.compile(
+    r"\$(?:\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|"
+    r"(?P<bare>[A-Za-z_][A-Za-z0-9_]*))"
+)
+
+HTTPS_REQUIRED_HOOK_EVENTS = {
+    "preToolUse",
+    "PreToolUse",
+    "permissionRequest",
+    "PermissionRequest",
+}
+
 
 def scan_document(doc: Document, root: Path) -> List[Finding]:
     findings: List[Finding] = []
@@ -159,6 +195,8 @@ def scan_document(doc: Document, root: Path) -> List[Finding]:
         findings.extend(mcp_config(doc))
     elif doc.kind == "workflow":
         findings.extend(workflow_risks(doc))
+    elif doc.kind == "agent_hook":
+        findings.extend(agent_hook_config(doc))
 
     return findings
 
@@ -472,6 +510,425 @@ def workflow_risks(doc: Document) -> Iterator[Finding]:
         )
 
 
+def agent_hook_config(doc: Document) -> Iterator[Finding]:
+    try:
+        data = strict_json_loads(doc.text)
+    except JSONSafetyError as exc:
+        yield _hook_finding(
+            doc,
+            exc.line or 1,
+            "GitHub Copilot hook configuration is not valid JSON.",
+            "Fix the JSON syntax so Copilot reads the intended hooks.",
+            str(exc),
+        )
+        return
+    if not isinstance(data, dict):
+        yield _hook_finding(
+            doc,
+            1,
+            "GitHub Copilot hook configuration root is not an object.",
+            "Use an object containing a hooks map.",
+            "unsupported JSON root",
+        )
+        return
+
+    standalone = doc.relative_path.startswith(".github/hooks/")
+    version = data.get("version")
+    if standalone and (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version != 1
+    ):
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, '"version"'),
+            "Repository hook file does not declare version 1.",
+            "Set the top-level hook configuration version to 1.",
+            f"version={data.get('version')!r}",
+        )
+        return
+    if data.get("disableAllHooks") is True:
+        return
+    if "hooks" not in data and not standalone:
+        return
+
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, '"hooks"'),
+            "GitHub Copilot hooks must be an object of event arrays.",
+            "Map each hook event to an array of hook definitions.",
+            "invalid hooks shape",
+        )
+        return
+
+    claude_settings = doc.relative_path in {
+        ".claude/settings.json",
+        ".claude/settings.local.json",
+    }
+    for event, raw_entries in hooks.items():
+        if not isinstance(raw_entries, list):
+            yield _hook_finding(
+                doc,
+                _line_for_text(doc.text, f'"{event}"'),
+                f"GitHub Copilot hook event '{event}' is not an array.",
+                "Wrap hook definitions for each event in an array.",
+                "invalid event shape",
+            )
+            continue
+        for index, entry in enumerate(raw_entries):
+            if not isinstance(entry, dict):
+                yield _hook_finding(
+                    doc,
+                    _line_for_text(doc.text, f'"{event}"'),
+                    f"GitHub Copilot hook event '{event}' contains an invalid item.",
+                    "Use an object for every hook definition.",
+                    f"item {index + 1}",
+                )
+                continue
+            if "hooks" in entry:
+                yield from _nested_hook_group_findings(
+                    doc,
+                    str(event),
+                    entry,
+                )
+            elif claude_settings:
+                yield _hook_finding(
+                    doc,
+                    _line_for_text(doc.text, f'"{event}"'),
+                    f"Claude hook event '{event}' contains an invalid matcher group.",
+                    "Nest hook handlers under a hooks array in each matcher group.",
+                    f"item {index + 1}",
+                )
+            else:
+                yield from _hook_entry_findings(
+                    doc,
+                    str(event),
+                    entry,
+                    claude_format=False,
+                )
+
+
+def _nested_hook_group_findings(
+    doc: Document,
+    event: str,
+    group: Dict[str, object],
+) -> Iterator[Finding]:
+    handlers = group.get("hooks")
+    if not isinstance(handlers, list):
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, f'"{event}"'),
+            f"Claude-format hook event '{event}' has an invalid handlers list.",
+            "Set hooks to an array of reviewed hook handler objects.",
+            "invalid nested hooks shape",
+        )
+        return
+    for index, handler in enumerate(handlers):
+        if not isinstance(handler, dict):
+            yield _hook_finding(
+                doc,
+                _line_for_text(doc.text, f'"{event}"'),
+                f"Claude-format hook event '{event}' contains an invalid handler.",
+                "Use an object for every nested hook handler.",
+                f"handler {index + 1}",
+            )
+            continue
+        yield from _hook_entry_findings(
+            doc,
+            event,
+            handler,
+            claude_format=True,
+        )
+
+
+def _hook_entry_findings(
+    doc: Document,
+    event: str,
+    entry: Dict[str, object],
+    claude_format: bool,
+) -> Iterator[Finding]:
+    hook_type = entry.get("type", "command")
+    if hook_type == "http":
+        yield from _http_hook_findings(doc, event, entry)
+    elif hook_type == "command":
+        yield from _command_hook_findings(doc, event, entry)
+    elif hook_type == "prompt":
+        if claude_format:
+            yield from _claude_prompt_hook_findings(
+                doc,
+                event,
+                entry,
+                "prompt",
+            )
+        else:
+            yield from _prompt_hook_findings(doc, event, entry)
+    elif claude_format and hook_type == "agent":
+        yield from _claude_prompt_hook_findings(
+            doc,
+            event,
+            entry,
+            "agent",
+        )
+    elif claude_format and hook_type == "mcp_tool":
+        yield from _claude_mcp_hook_findings(doc, event, entry)
+    else:
+        supported = (
+            "command, HTTP, MCP tool, prompt, or agent"
+            if claude_format
+            else "command, HTTP, or session-start prompt"
+        )
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, str(hook_type)),
+            f"GitHub Copilot hook '{event}' uses an unknown hook type.",
+            f"Use a supported {supported} hook type.",
+            f"type={hook_type!r}",
+        )
+
+
+def _command_hook_findings(
+    doc: Document,
+    event: str,
+    entry: Dict[str, object],
+) -> Iterator[Finding]:
+    commands = [
+        entry.get(field)
+        for field in ("bash", "powershell", "command")
+        if isinstance(entry.get(field), str) and entry.get(field)
+    ]
+    if not commands:
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, f'"{event}"'),
+            f"GitHub Copilot command hook '{event}' has no executable command.",
+            "Set bash, powershell, or command to a reviewed repository script.",
+            "missing command",
+        )
+    for command in commands:
+        if any(pattern.search(command) for pattern in HOOK_STDIN_UPLOAD_PATTERNS):
+            yield _hook_finding(
+                doc,
+                _line_for_text(doc.text, command),
+                f"GitHub Copilot command hook '{event}' sends hook input to a network client.",
+                "Remove inline network uploads or route reviewed, minimized data through an explicit HTTP hook.",
+                "inline network upload from hook stdin",
+                severity="high",
+            )
+            break
+
+    env = entry.get("env")
+    if not isinstance(env, dict):
+        return
+    for key, value in env.items():
+        if (
+            isinstance(value, str)
+            and _is_sensitive_key(str(key))
+            and _is_inline_secret(value)
+        ):
+            yield _hook_finding(
+                doc,
+                _line_for_text(doc.text, str(key)),
+                f"GitHub Copilot hook '{event}' embeds a secret-like environment value.",
+                "Reference a runtime environment variable instead of storing the value in hook JSON.",
+                f"{key}={_redact(value)}",
+                severity="critical",
+            )
+
+
+def _http_hook_findings(
+    doc: Document,
+    event: str,
+    entry: Dict[str, object],
+) -> Iterator[Finding]:
+    allowed = entry.get("allowedEnvVars")
+    allowed_env_vars = (
+        {name for name in allowed if isinstance(name, str)}
+        if isinstance(allowed, list)
+        else set()
+    )
+    headers = entry.get("headers")
+    sensitive_headers = (
+        [
+            str(name)
+            for name, value in headers.items()
+            if isinstance(value, str)
+            and _http_header_contains_inline_secret(
+                str(name),
+                value,
+                allowed_env_vars,
+            )
+        ]
+        if isinstance(headers, dict)
+        else []
+    )
+    if sensitive_headers:
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, sensitive_headers[0]),
+            f"GitHub Copilot HTTP hook '{event}' embeds a credential-like header value.",
+            "Reference an allowed runtime environment variable instead of storing credentials in hook JSON.",
+            ", ".join(sorted(sensitive_headers)),
+            severity="critical",
+        )
+        return
+
+    url = entry.get("url")
+    if not isinstance(url, str):
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, f'"{event}"'),
+            f"GitHub Copilot HTTP hook '{event}' has no valid URL.",
+            "Set url to an explicitly reviewed HTTP or HTTPS endpoint.",
+            "missing URL",
+        )
+        return
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError:
+        parsed = None
+        port = None
+    if (
+        parsed is None
+        or parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+    ):
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, url),
+            f"GitHub Copilot HTTP hook '{event}' has an invalid URL.",
+            "Set url to an explicitly reviewed HTTP or HTTPS endpoint.",
+            "invalid URL",
+        )
+        return
+    hostname = parsed.hostname.lower()
+    loopback = _is_loopback_hostname(hostname)
+    if parsed.scheme == "http":
+        if event in HTTPS_REQUIRED_HOOK_EVENTS:
+            message = (
+                f"GitHub Copilot HTTP hook '{event}' requires an HTTPS URL "
+                "because it can grant tool permissions."
+            )
+            remediation = "Use an explicitly reviewed HTTPS endpoint."
+        elif loopback:
+            message = (
+                f"GitHub Copilot HTTP hook '{event}' uses a loopback HTTP URL "
+                "that requires explicit local opt-in."
+            )
+            remediation = (
+                "Use HTTPS, or require COPILOT_HOOK_ALLOW_LOCALHOST=1 in the "
+                "trusted local environment."
+            )
+        else:
+            message = (
+                f"GitHub Copilot HTTP hook '{event}' uses an unsupported "
+                "non-TLS external URL."
+            )
+            remediation = "Use an explicitly reviewed HTTPS endpoint."
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, url),
+            message,
+            remediation,
+            _http_origin_evidence(parsed.scheme, hostname, port),
+        )
+        return
+    if loopback:
+        return
+    yield _hook_finding(
+        doc,
+        _line_for_text(doc.text, url),
+        f"GitHub Copilot HTTP hook '{event}' sends agent event data to an external endpoint.",
+        "Confirm the endpoint, payload, retention, and firewall policy before enabling the hook.",
+        _http_origin_evidence(parsed.scheme, hostname, port),
+    )
+
+
+def _prompt_hook_findings(
+    doc: Document,
+    event: str,
+    entry: Dict[str, object],
+) -> Iterator[Finding]:
+    if event not in {"sessionStart", "SessionStart"}:
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, f'"{event}"'),
+            f"GitHub Copilot prompt hook '{event}' uses an unsupported event.",
+            "Use prompt hooks only for sessionStart or SessionStart.",
+            "unsupported prompt event",
+        )
+        return
+
+    prompt = entry.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, '"prompt"'),
+            "GitHub Copilot session-start prompt hook has no prompt text.",
+            "Set prompt to a reviewed natural-language prompt or slash command.",
+            "missing prompt",
+        )
+
+
+def _claude_prompt_hook_findings(
+    doc: Document,
+    event: str,
+    entry: Dict[str, object],
+    hook_type: str,
+) -> Iterator[Finding]:
+    prompt = entry.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, '"prompt"'),
+            f"Claude-format {hook_type} hook '{event}' has no prompt text.",
+            "Set prompt to reviewed text appropriate for the hook event.",
+            "missing prompt",
+        )
+
+
+def _claude_mcp_hook_findings(
+    doc: Document,
+    event: str,
+    entry: Dict[str, object],
+) -> Iterator[Finding]:
+    missing = [
+        field
+        for field in ("server", "tool")
+        if not isinstance(entry.get(field), str)
+        or not str(entry.get(field)).strip()
+    ]
+    if missing:
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, f'"{event}"'),
+            f"Claude-format MCP tool hook '{event}' is incomplete.",
+            "Set non-empty server and tool names for the MCP hook handler.",
+            "missing " + ", ".join(missing),
+        )
+
+
+def _hook_finding(
+    doc: Document,
+    line: int,
+    message: str,
+    remediation: str,
+    evidence: str,
+    severity: str = "medium",
+) -> Finding:
+    return finding(
+        "AH015",
+        severity,
+        doc.relative_path,
+        line,
+        message,
+        remediation,
+        evidence=evidence,
+    )
+
+
 def finding(
     rule_id: str,
     severity: str,
@@ -598,6 +1055,76 @@ def _clip(value: str, limit: int = 120) -> str:
     if len(value) <= limit:
         return value
     return value[: limit - 3] + "..."
+
+
+def _http_origin_evidence(
+    scheme: str,
+    hostname: str,
+    port: Optional[int],
+) -> str:
+    host = f"[{hostname}]" if ":" in hostname else hostname
+    if port is not None:
+        host = f"{host}:{port}"
+    return f"{scheme}://{host}"
+
+
+def _http_header_contains_inline_secret(
+    name: str,
+    value: str,
+    allowed_env_vars: set,
+) -> bool:
+    normalized_name = name.strip().lower()
+    references = {
+        match.group("braced") or match.group("bare")
+        for match in HOOK_ENV_REFERENCE_PATTERN.finditer(value)
+    }
+    candidate = HOOK_ENV_REFERENCE_PATTERN.sub(" ", value).strip()
+    if normalized_name in {"authorization", "proxy-authorization"}:
+        parts = candidate.split(None, 1)
+        candidate = parts[1] if len(parts) == 2 else parts[0]
+        return _contains_inline_secret_segment(candidate)
+    if normalized_name == "cookie":
+        cookie_values = [
+            part.split("=", 1)[1] if "=" in part else part
+            for part in candidate.split(";")
+        ]
+        return _contains_inline_secret_segment(" ".join(cookie_values))
+    header_parts = {
+        part
+        for part in re.split(r"[^a-z0-9]+", normalized_name)
+        if part
+    }
+    sensitive_parts = {
+        "cookie",
+        "credential",
+        "credentials",
+        "key",
+        "password",
+        "secret",
+        "token",
+    }
+    if not header_parts & sensitive_parts:
+        return False
+    if references and references.issubset(allowed_env_vars):
+        return False
+    return _contains_inline_secret_segment(candidate)
+
+
+def _contains_inline_secret_segment(value: str) -> bool:
+    return any(
+        _is_inline_secret(segment)
+        for segment in re.findall(r"[A-Za-z0-9_./+=-]{12,}", value)
+    )
+
+
+def _is_loopback_hostname(hostname: str) -> bool:
+    normalized = hostname.rstrip(".")
+    if normalized == "localhost":
+        return True
+    try:
+        return ip_address(normalized).is_loopback
+    except ValueError:
+        return False
 
 
 def _redact(value: str) -> str:

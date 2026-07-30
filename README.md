@@ -4,7 +4,8 @@ Fast repo hygiene checks for AI coding agents.
 
 `agent-hygiene` scans the files that steer coding agents before they steer a
 repository: `AGENTS.md`, `CLAUDE.md`, Cursor rules, Copilot instructions, MCP
-JSON configs, and GitHub Actions workflows that trigger agentic work.
+JSON configs, GitHub Copilot hooks, and GitHub Actions workflows that trigger
+agentic work.
 
 It is built for one job: make agent-ready repositories safer to trust, easier
 to audit, and predictable to run in CI.
@@ -49,6 +50,8 @@ run behaves.
 - flags hardcoded credentials and suspicious exfiltration patterns
 - reviews MCP server commands for shells, inline code, unpinned `npx`, and
   inline secrets
+- checks GitHub Copilot hook JSON for structural errors, embedded environment
+  secrets, and outbound HTTP trust boundaries
 - highlights risky GitHub Actions triggers such as `pull_request_target` with
   broad write permissions
 - detects stale path references and missing verification commands
@@ -170,6 +173,13 @@ GitHub Actions:
 - `.github/workflows/*.yml`
 - `.github/workflows/*.yaml`
 
+GitHub Copilot hooks:
+
+- `.github/hooks/*.json`
+- the top-level `hooks` block in `.github/copilot/settings.json` and
+  `.github/copilot/settings.local.json`
+- cross-tool `.claude/settings.json` and `.claude/settings.local.json` hooks
+
 ## Example finding
 
 ```text
@@ -253,6 +263,7 @@ agent-hygiene scan . --baseline .agent-hygiene-baseline.json --fail-on high
 | AH012 | Duplicate root instruction files can drift | low |
 | AH013 | Oversized agent instruction file | medium |
 | AH014 | Invalid MCP JSON | medium |
+| AH015 | Risky GitHub Copilot hook | medium |
 
 More detail lives in [docs/rules.md](docs/rules.md).
 
@@ -267,8 +278,8 @@ declared precision and recall gates:
 PYTHONPATH=src python -m agent_hygiene evaluate tests/corpus/manifest.json
 ```
 
-The v0.4.0 synthetic corpus snapshot has 18 cases and 13 expected findings. It currently
-reports 13 true positives, 0 false positives, and 0 false negatives against
+The synthetic corpus snapshot has 20 cases and 14 expected findings. It
+currently reports 14 true positives, 0 false positives, and 0 false negatives against
 gates of 0.95 precision and 0.90 recall. These are seeded regression fixtures,
 not a claim about performance on independent real-world repositories. The
 methodology and manifest contract are documented in
