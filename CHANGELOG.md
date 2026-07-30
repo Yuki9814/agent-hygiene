@@ -2,6 +2,18 @@
 
 All notable changes are documented here. This project follows semantic versioning.
 
+## 0.6.0 - 2026-07-30
+
+- Scan GitHub prompt files and Claude-compatible agent profiles alongside
+  existing Copilot custom agents, repository instructions, and skills.
+- Discover supported Copilot instructions, agent profiles, prompt files,
+  Claude agents, and Cursor rules inside nested monorepo packages instead of
+  limiting those surfaces to the repository root.
+- Regenerate the deterministic PatchHive interoperability reports and
+  published SHA-256 digests with v0.6.0 producer metadata.
+- Keep the single deterministic repository walk, bounded regular-file reads,
+  existing rule IDs, output schemas, and zero-dependency runtime unchanged.
+
 ## 0.5.2 - 2026-07-29
 
 - Read scanner inputs, configuration, baselines, evaluation manifests and

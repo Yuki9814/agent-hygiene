@@ -16,7 +16,7 @@ published GitHub wheel:
 
 ```bash
 python -m pip install \
-  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.5.2/agent_hygiene-0.5.2-py3-none-any.whl
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.6.0/agent_hygiene-0.6.0-py3-none-any.whl
 agent-hygiene scan .
 ```
 
@@ -111,7 +111,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Pin an existing release. Review release notes before upgrading.
       - id: hygiene
-        uses: Yuki9814/agent-hygiene@v0.5.2
+        uses: Yuki9814/agent-hygiene@v0.6.0
         with:
           min-score: "85"
           fail-on: high
@@ -152,7 +152,12 @@ Agent instruction files:
 - `.cursor/rules/*.mdc`
 - `.github/copilot-instructions.md`
 - `.github/instructions/*.instructions.md`
+- `.github/agents/*.md`, `.claude/agents/*.md`
+- `.github/prompts/*.prompt.md`
 - `skills/**/SKILL.md`, `.claude/skills/**/SKILL.md`
+
+These repository-scoped surfaces are discovered at the root and inside nested
+packages, so monorepo-specific agent instructions are not silently skipped.
 
 MCP configs:
 
