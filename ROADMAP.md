@@ -43,6 +43,17 @@ complete the external review or canary gates.
 The fixture pair is synthetic compatibility evidence. It is not a consenting
 repository, external review, or adoption result.
 
+## v0.6 — evolving agent configuration coverage
+
+- [x] Scan repository prompt files and custom agent profiles used by current
+  Copilot and Claude-compatible workflows.
+- [x] Discover supported agent instruction surfaces inside nested monorepo
+  packages.
+- [x] Preserve stable rule IDs, output contracts, bounded reads, and the
+  single-walk performance contract while expanding coverage.
+- [ ] Record sanitized real-world examples for the new surfaces through the
+  existing public-canary evidence process.
+
 ## v1.0 release gate
 
 - [ ] Complete a 30-day canary across consenting public repositories.

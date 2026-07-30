@@ -48,7 +48,14 @@ class PerformanceContractTests(unittest.TestCase):
                 ".github/copilot-instructions.md",
                 ".github/instructions/nested/team.instructions.md",
                 ".github/agents/nested/reviewer.md",
+                ".github/prompts/nested/release.prompt.md",
                 ".cursor/rules/nested/style.mdc",
+                "packages/api/.github/copilot-instructions.md",
+                "packages/api/.github/instructions/nested/api.instructions.md",
+                "packages/api/.github/agents/nested/api-reviewer.agent.md",
+                "packages/api/.github/prompts/nested/api-review.prompt.md",
+                "packages/api/.claude/agents/nested/security-reviewer.md",
+                "packages/api/.cursor/rules/nested/api-style.mdc",
                 "packages/demo/skills/review/SKILL.md",
                 "packages/demo/mcp.json",
             ]
@@ -57,6 +64,9 @@ class PerformanceContractTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("Run tests before accepting changes.\n", encoding="utf-8")
             (root / "noise.txt").write_text("unrelated\n", encoding="utf-8")
+            nested_noise = root / ".github" / "docs" / "copilot-instructions.md"
+            nested_noise.parent.mkdir(parents=True, exist_ok=True)
+            nested_noise.write_text("unrelated documentation\n", encoding="utf-8")
 
             with patch(
                 "agent_hygiene.discovery.os.walk",

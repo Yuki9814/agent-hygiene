@@ -115,6 +115,7 @@ def discover(root: Path, excludes: Sequence[str]) -> DiscoveryResult:
 
 def classify(root: Path, path: Path) -> str:
     rel = path.relative_to(root).as_posix()
+    directory_parts = path.relative_to(root).parent.parts
     name = path.name
 
     if rel.startswith(".github/workflows/") and path.suffix in {".yml", ".yaml"}:
@@ -123,13 +124,36 @@ def classify(root: Path, path: Path) -> str:
     if name in INSTRUCTION_NAMES:
         return "instructions"
 
-    if rel == ".github/copilot-instructions.md":
+    if (
+        name == "copilot-instructions.md"
+        and directory_parts
+        and directory_parts[-1] == ".github"
+    ):
         return "instructions"
-    if rel.startswith(".github/instructions/") and rel.endswith(".instructions.md"):
+    if name.endswith(".instructions.md") and _has_directory_path(
+        directory_parts,
+        (".github", "instructions"),
+    ):
         return "instructions"
-    if rel.startswith(".github/agents/") and rel.endswith(".md"):
+    if name.endswith(".md") and _has_directory_path(
+        directory_parts,
+        (".github", "agents"),
+    ):
         return "instructions"
-    if rel.startswith(".cursor/rules/") and path.suffix == ".mdc":
+    if name.endswith(".prompt.md") and _has_directory_path(
+        directory_parts,
+        (".github", "prompts"),
+    ):
+        return "instructions"
+    if name.endswith(".md") and _has_directory_path(
+        directory_parts,
+        (".claude", "agents"),
+    ):
+        return "instructions"
+    if path.suffix == ".mdc" and _has_directory_path(
+        directory_parts,
+        (".cursor", "rules"),
+    ):
         return "instructions"
     if "/skills/" in f"/{rel}" and name == "SKILL.md":
         return "instructions"
@@ -206,12 +230,51 @@ def _could_be_relevant(directory_parts: Sequence[str], filename: str) -> bool:
     prefix = tuple(directory_parts[:2])
     if prefix == (".github", "workflows"):
         return filename.endswith((".yml", ".yaml"))
-    if tuple(directory_parts) == (".github",):
-        return filename == "copilot-instructions.md"
-    if prefix == (".github", "instructions"):
-        return filename.endswith(".instructions.md")
-    if prefix == (".github", "agents"):
-        return filename.endswith(".md")
-    if prefix == (".cursor", "rules"):
-        return filename.endswith(".mdc")
+    if (
+        filename == "copilot-instructions.md"
+        and directory_parts
+        and directory_parts[-1] == ".github"
+    ):
+        return True
+    if filename.endswith(".instructions.md") and _has_directory_path(
+        directory_parts,
+        (".github", "instructions"),
+    ):
+        return True
+    if filename.endswith(".md") and _has_directory_path(
+        directory_parts,
+        (".github", "agents"),
+    ):
+        return True
+    if filename.endswith(".prompt.md") and _has_directory_path(
+        directory_parts,
+        (".github", "prompts"),
+    ):
+        return True
+    if filename.endswith(".md") and _has_directory_path(
+        directory_parts,
+        (".claude", "agents"),
+    ):
+        return True
+    if filename.endswith(".mdc") and _has_directory_path(
+        directory_parts,
+        (".cursor", "rules"),
+    ):
+        return True
     return filename == "SKILL.md" and "skills" in directory_parts
+
+
+def _has_directory_path(
+    directory_parts: Sequence[str],
+    expected: Sequence[str],
+) -> bool:
+    expected_tuple = tuple(expected)
+    expected_length = len(expected_tuple)
+    if expected_length == 0:
+        return False
+
+    for index in range(len(directory_parts) - expected_length + 1):
+        if tuple(directory_parts[index : index + expected_length]) == expected_tuple:
+            return True
+
+    return False
