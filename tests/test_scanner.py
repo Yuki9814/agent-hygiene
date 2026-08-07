@@ -214,6 +214,8 @@ class ScannerTests(unittest.TestCase):
 
             self.assertEqual(len(result.findings), 1)
             self.assertEqual(result.findings[0].rule_id, "AH015")
+            self.assertEqual(result.findings[0].severity, "critical")
+            self.assertIn("credentials in its URL", result.findings[0].message)
             self.assertEqual(
                 result.findings[0].evidence,
                 "https://audit.example.test:8443",

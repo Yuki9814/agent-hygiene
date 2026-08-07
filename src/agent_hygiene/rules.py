@@ -804,6 +804,19 @@ def _http_hook_findings(
         )
         return
     hostname = parsed.hostname.lower()
+    if parsed.username is not None or parsed.password is not None:
+        yield _hook_finding(
+            doc,
+            _line_for_text(doc.text, url),
+            f"GitHub Copilot HTTP hook '{event}' embeds credentials in its URL.",
+            (
+                "Reference an allowed runtime environment variable in a "
+                "reviewed header instead of storing credentials in the URL."
+            ),
+            _http_origin_evidence(parsed.scheme, hostname, port),
+            severity="critical",
+        )
+        return
     loopback = _is_loopback_hostname(hostname)
     if parsed.scheme == "http":
         if event in HTTPS_REQUIRED_HOOK_EVENTS:
