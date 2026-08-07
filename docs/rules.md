@@ -78,8 +78,9 @@ Flags MCP config files that cannot be parsed as JSON.
 Scans repository hook files under `.github/hooks/*.json` and inline hooks in
 Copilot and cross-tool Claude settings. It flags invalid hook structures,
 embedded command environment or HTTP header credentials, inline hook-input
-uploads, non-TLS transport, and external HTTP destinations that need an
-explicit payload, retention, and firewall review. A
+uploads, credentials embedded in hook URLs, non-TLS transport, and external
+HTTP destinations that need an explicit payload, retention, and firewall
+review. A
 direct command hook that calls a reviewed repository script or a valid
 session-start prompt hook is not flagged merely for being a hook. Claude-format
 matcher groups and all five Claude handler types are parsed in their nested
