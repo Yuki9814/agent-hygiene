@@ -207,10 +207,15 @@ agent-hygiene scan [path]
 agent-hygiene init [path]
 agent-hygiene baseline [path] --output .agent-hygiene-baseline.json
 agent-hygiene explain RULE_ID
+agent-hygiene rules [--format text|json]
 agent-hygiene evaluate MANIFEST [--format text|json]
 agent-hygiene review-pack MANIFEST --output blind-review.json
 agent-hygiene evidence DIRECTORY [--format json|markdown] [--output FILE]
 ```
+
+`agent-hygiene rules --format json` emits the versioned rule catalog used by
+developer tooling. It includes each rule ID, default severity, name, and
+remediation guidance without requiring clients to scrape Markdown.
 
 ## Config
 

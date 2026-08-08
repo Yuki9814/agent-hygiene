@@ -18,7 +18,7 @@ from .evidence import (
 from .evaluation import EvaluationError, evaluate_manifest, render_evaluation
 from .models import SEVERITY_ORDER
 from .reporters import render, should_fail, write_output
-from .rules import RULES
+from .rules import RULES, rule_catalog
 from .scanner import scan
 
 
@@ -34,6 +34,8 @@ def main(argv=None) -> int:
         return run_baseline(args)
     if args.command == "explain":
         return run_explain(args)
+    if args.command == "rules":
+        return run_rules(args)
     if args.command == "evaluate":
         return run_evaluate(args)
     if args.command == "review-pack":
@@ -88,6 +90,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     explain_parser = subparsers.add_parser("explain", help="explain a rule")
     explain_parser.add_argument("rule_id", help="rule id such as AH006")
+
+    rules_parser = subparsers.add_parser(
+        "rules",
+        help="list the available rules and their metadata",
+    )
+    rules_parser.add_argument("--format", choices=["text", "json"], default="text")
 
     evaluate_parser = subparsers.add_parser(
         "evaluate",
@@ -227,6 +235,28 @@ def run_explain(args: argparse.Namespace) -> int:
     print(f"{rule_id}: {meta['name']}")
     print(f"severity: {meta['severity']}")
     print(meta["help"])
+    return 0
+
+
+def run_rules(args: argparse.Namespace) -> int:
+    catalog = rule_catalog()
+    if args.format == "json":
+        print(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "tool": {"name": "agent-hygiene", "version": __version__},
+                    "rules": catalog,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    for rule in catalog:
+        print(f"{rule['id']}: {rule['name']} ({rule['severity']})")
+        print(f"  {rule['help']}")
     return 0
 
 

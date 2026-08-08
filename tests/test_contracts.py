@@ -16,6 +16,7 @@ from agent_hygiene.baseline import render_baseline
 from agent_hygiene.cli import build_parser, main
 from agent_hygiene.config import Config, load_config
 from agent_hygiene.reporters import render
+from agent_hygiene.rules import RULES
 from agent_hygiene.scanner import scan
 from agent_hygiene.scope import repository_scope_fingerprint
 
@@ -241,6 +242,29 @@ class OutputContractTests(unittest.TestCase):
 
             self.assertEqual(exit_code, 0)
             self.assertEqual(json.loads(stdout.getvalue())["schema_version"], 1)
+
+    def test_rules_cli_json_is_a_sorted_machine_readable_catalog(self):
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            exit_code = main(["rules", "--format", "json"])
+
+        self.assertEqual(exit_code, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(
+            payload["tool"],
+            {"name": "agent-hygiene", "version": __version__},
+        )
+        catalog = payload["rules"]
+        self.assertEqual([rule["id"] for rule in catalog], sorted(RULES))
+        self.assertEqual(
+            catalog[0],
+            {"id": "AH001", **RULES["AH001"]},
+        )
+        self.assertEqual(
+            {"id", "name", "severity", "help"},
+            set(catalog[-1]),
+        )
 
     def test_portable_cli_normalizes_revision_and_rejects_non_json_output(self):
         with tempfile.TemporaryDirectory() as tmp:

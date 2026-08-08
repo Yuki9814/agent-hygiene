@@ -4,6 +4,9 @@ All notable changes are documented here. This project follows semantic versionin
 
 ## Unreleased
 
+- Add a stable `rules --format json` catalog so CI, editor integrations, and
+  local handoff tools can discover rule IDs, severities, and remediation text
+  without scraping human-facing documentation.
 - Discover repository-scoped GitHub Copilot hooks in `.github/hooks/*.json`,
   Copilot settings, and cross-tool Claude settings.
 - Add AH015 for invalid hook structure, embedded hook environment secrets,
