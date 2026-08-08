@@ -90,6 +90,14 @@ RULES: Dict[str, Dict[str, str]] = {
 }
 
 
+def rule_catalog() -> List[Dict[str, str]]:
+    """Return the stable, machine-readable metadata for every rule."""
+    return [
+        {"id": rule_id, **RULES[rule_id]}
+        for rule_id in sorted(RULES)
+    ]
+
+
 PROMPT_OVERRIDE_PATTERNS = [
     re.compile(
         r"\b(ignore|disregard|override)\b.{0,50}\b(previous|prior|above|system|developer|user)\b.{0,30}\b(instruction|prompt|message|rule)s?\b",
