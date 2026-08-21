@@ -18,10 +18,21 @@
     "score": 100,
     "source_revision": "2222222222222222222222222222222222222222",
     "status": "ready",
+    "suppression_audit": {
+      "by_source": {
+        "baseline": 0,
+        "ignore-path": 0,
+        "ignore-rule": 0,
+        "inline-directive": 0
+      },
+      "count": 0,
+      "items": [],
+      "truncated": false
+    },
     "workflows": 0
   },
   "tool": {
     "name": "agent-hygiene",
-    "version": "0.6.0"
+    "version": "0.7.0"
   }
 }

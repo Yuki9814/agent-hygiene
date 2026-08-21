@@ -17,7 +17,7 @@ published GitHub wheel:
 
 ```bash
 python -m pip install \
-  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.6.0/agent_hygiene-0.6.0-py3-none-any.whl
+  https://github.com/Yuki9814/agent-hygiene/releases/download/v0.7.0/agent_hygiene-0.7.0-py3-none-any.whl
 agent-hygiene scan .
 ```
 
@@ -114,7 +114,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # Pin an existing release. Review release notes before upgrading.
       - id: hygiene
-        uses: Yuki9814/agent-hygiene@v0.6.0
+        uses: Yuki9814/agent-hygiene@v0.7.0
         with:
           min-score: "85"
           fail-on: high
@@ -347,6 +347,19 @@ location hash keeps alerts stable when unrelated lines are inserted before a
 finding and distinguishes repeated matching contexts in one file. See
 [SARIF interoperability](docs/sarif.md) for the exact contract, oversized-file
 behavior, and privacy boundary.
+
+Every report also exposes a bounded `suppression_audit` summary. It counts
+suppressed findings by `baseline`, `ignore-rule`, `ignore-path`, and
+`inline-directive`, and includes redaction-safe details with the rule ID,
+normalized repository-relative location, finding fingerprint, source, and a
+static reason. Text and Markdown show the same audit, while SARIF carries it
+as the custom run property `suppressionAudit`. Detail is capped at 10,000
+items while the total count remains exact; raw directives, ignore patterns,
+and finding evidence are never copied into the ledger. When multiple policies
+match, the first applicable legacy decision wins in this order: configured
+rule, configured path, baseline, then inline directive. Adding this optional
+summary keeps native JSON schema version 1, rule IDs, fingerprints, and old
+finding fields compatible.
 
 Evidence is redacted before output and fingerprinting. Upgrading from an older
 release can therefore change the fingerprint of a finding whose evidence

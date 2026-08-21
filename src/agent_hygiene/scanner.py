@@ -2,7 +2,7 @@ from dataclasses import replace
 from fnmatch import fnmatch
 from pathlib import Path
 import re
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from .baseline import BaselineError, load_baseline
 from .config import Config
@@ -13,13 +13,24 @@ from .models import (
     DiscoveryIssue,
     Document,
     Finding,
+    MAX_SUPPRESSION_AUDIT_ITEMS,
     ScanResult,
     ScanSummary,
+    SuppressionAudit,
+    SuppressionRecord,
     count_by_severity,
 )
 from .rules import repository_rules, scan_document
 from .sarif_fingerprints import primary_location_line_hashes
 from .scope import repository_scope_fingerprint
+
+
+SUPPRESSION_SOURCES = (
+    "baseline",
+    "ignore-rule",
+    "ignore-path",
+    "inline-directive",
+)
 
 
 def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
@@ -45,7 +56,7 @@ def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
                     message=str(exc),
                 )
             )
-    findings = _filter_findings(
+    findings, suppression_audit = _filter_findings(
         findings,
         docs_by_path,
         config,
@@ -67,6 +78,7 @@ def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
         counts=count_by_severity(findings),
         complete=not discovery_issues,
         discovery_issues=discovery_issues,
+        suppression_audit=suppression_audit,
     )
     return ScanResult(summary=summary, findings=findings)
 
@@ -134,22 +146,75 @@ def _filter_findings(
     docs_by_path: Dict[str, Document],
     config: Config,
     baseline_fingerprints: Set[str],
-) -> List[Finding]:
+) -> Tuple[List[Finding], SuppressionAudit]:
     ignored_rules = {rule.upper() for rule in config.ignore_rules}
 
     kept: List[Finding] = []
+    records: List[SuppressionRecord] = []
+    by_source = {source: 0 for source in SUPPRESSION_SOURCES}
     for finding in findings:
-        if finding.rule_id in ignored_rules:
-            continue
-        if _matches_ignored_path(finding, config.ignore):
-            continue
-        if finding.fingerprint() in baseline_fingerprints:
-            continue
-        doc = docs_by_path.get(finding.path)
-        if doc and _line_has_ignore_directive(doc, finding):
+        suppression = _suppression_for_finding(
+            finding,
+            docs_by_path,
+            ignored_rules,
+            config.ignore,
+            baseline_fingerprints,
+        )
+        if suppression is not None:
+            source, reason = suppression
+            by_source[source] += 1
+            if len(records) < MAX_SUPPRESSION_AUDIT_ITEMS:
+                records.append(
+                    SuppressionRecord(
+                        rule_id=finding.rule_id,
+                        path=_normalize_suppression_path(finding.path),
+                        line=finding.line,
+                        fingerprint=finding.fingerprint(),
+                        source=source,
+                        reason=reason,
+                    )
+                )
             continue
         kept.append(finding)
-    return kept
+
+    records.sort(key=lambda item: (item.path, item.line, item.rule_id, item.source))
+    count = sum(by_source.values())
+    return kept, SuppressionAudit(
+        count=count,
+        by_source=by_source,
+        items=records,
+        truncated=count > len(records),
+    )
+
+
+def _suppression_for_finding(
+    finding: Finding,
+    docs_by_path: Dict[str, Document],
+    ignored_rules: Set[str],
+    ignored_paths: List[str],
+    baseline_fingerprints: Set[str],
+) -> Optional[Tuple[str, str]]:
+    """Return the first matching suppression, preserving legacy precedence."""
+
+    if finding.rule_id in ignored_rules:
+        return "ignore-rule", "matched configured ignore rule"
+    if _matches_ignored_path(finding, ignored_paths):
+        return "ignore-path", "matched configured ignore path"
+    if finding.fingerprint() in baseline_fingerprints:
+        return "baseline", "matched baseline fingerprint"
+    doc = docs_by_path.get(finding.path)
+    if doc:
+        inline_reason = _inline_suppression_reason(doc, finding)
+        if inline_reason is not None:
+            return "inline-directive", inline_reason
+    return None
+
+
+def _normalize_suppression_path(path: str) -> str:
+    normalized = path.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
 
 
 def _matches_ignored_path(finding: Finding, patterns: List[str]) -> bool:
@@ -162,14 +227,18 @@ def _matches_ignored_path(finding: Finding, patterns: List[str]) -> bool:
 
 
 def _line_has_ignore_directive(doc: Document, finding: Finding) -> bool:
+    return _inline_suppression_reason(doc, finding) is not None
+
+
+def _inline_suppression_reason(doc: Document, finding: Finding) -> Optional[str]:
     lines = split_sarif_lines(doc.text)
     index = finding.line - 1
     if 0 <= index < len(lines) and _directive_allows(lines[index], finding.rule_id, next_line=False):
-        return True
+        return "matched same-line inline directive"
     previous_index = index - 1
     if 0 <= previous_index < len(lines) and _directive_allows(lines[previous_index], finding.rule_id, next_line=True):
-        return True
-    return False
+        return "matched previous-line inline directive"
+    return None
 
 
 def _directive_allows(line: str, rule_id: str, next_line: bool) -> bool:
