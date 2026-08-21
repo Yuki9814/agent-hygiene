@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from . import __version__
-from .models import SEVERITY_ORDER, Finding, ScanResult
+from .models import MAX_SUPPRESSION_AUDIT_ITEMS, SEVERITY_ORDER, Finding, ScanResult
 from .rules import RULES
 
 
@@ -28,16 +28,32 @@ def render(result: ScanResult, output_format: str, portable: bool = False) -> st
 
 def render_text(result: ScanResult) -> str:
     summary = result.summary
+    suppression_audit = summary.suppression_audit
     lines = [
         f"agent-hygiene score {summary.score}/100 ({summary.status})",
         f"scanned {summary.scanned_files} files: {summary.instruction_files} instructions, {summary.mcp_configs} MCP configs, {summary.workflows} workflows",
         _count_line(summary.counts),
+        _suppression_count_line(suppression_audit.count, suppression_audit.truncated),
     ]
 
     if not summary.complete:
         lines.append(f"scan incomplete: {len(summary.discovery_issues)} file(s) skipped or truncated")
         for issue in summary.discovery_issues:
             lines.append(f"  {_human_text(issue.path)}: {_human_text(issue.message)}")
+
+    if suppression_audit.count:
+        lines.append("")
+        lines.append("suppression audit:")
+        for item in suppression_audit.items:
+            lines.append(
+                f"  {item.rule_id} {_human_text(item.path)}:{item.line} "
+                f"[{item.source}] {_human_text(item.reason)} "
+                f"({item.fingerprint})"
+            )
+        if suppression_audit.truncated:
+            lines.append(
+                f"  detail list truncated at {MAX_SUPPRESSION_AUDIT_ITEMS} item(s)"
+            )
 
     if not result.findings:
         lines.append("no findings")
@@ -60,6 +76,7 @@ def render_text(result: ScanResult) -> str:
 
 def render_markdown(result: ScanResult) -> str:
     summary = result.summary
+    suppression_audit = summary.suppression_audit
     lines = [
         "# Agent Hygiene Report",
         "",
@@ -69,6 +86,7 @@ def render_markdown(result: ScanResult) -> str:
         f"- MCP configs: {summary.mcp_configs}",
         f"- Workflows: {summary.workflows}",
         f"- Findings: {_count_line(summary.counts)}",
+        f"- Suppressed findings: {suppression_audit.count}",
         f"- Scan complete: {'yes' if summary.complete else 'no'}",
         "",
     ]
@@ -81,6 +99,29 @@ def render_markdown(result: ScanResult) -> str:
                 f"({_human_text(issue.reason)}): {_human_text(issue.message)}"
             )
         lines.append("")
+
+    if suppression_audit.count:
+        lines.extend(
+            [
+                "## Suppression audit",
+                "",
+                "| Rule | Location | Source | Reason | Fingerprint |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+        )
+        for item in suppression_audit.items:
+            location = f"`{_markdown_code(item.path)}:{item.line}`"
+            lines.append(
+                f"| {item.rule_id} | {location} | {_escape_table(item.source)} | "
+                f"{_escape_table(_human_text(item.reason))} | {item.fingerprint} |"
+            )
+        if suppression_audit.truncated:
+            lines.extend(
+                ["", f"Detail list truncated at {MAX_SUPPRESSION_AUDIT_ITEMS} item(s)."]
+            )
+        lines.append("")
+    else:
+        lines.extend(["## Suppression audit", "", "No suppressed findings.", ""])
 
     if not result.findings:
         lines.append("No findings.")
@@ -158,6 +199,7 @@ def render_sarif(result: ScanResult) -> str:
                         if result.summary.source_revision
                         else {}
                     ),
+                    "suppressionAudit": result.summary.suppression_audit.to_dict(),
                 },
             }
         ],
@@ -183,6 +225,15 @@ def write_output(text: str, destination: str) -> None:
 def _count_line(counts: Dict[str, int]) -> str:
     ordered = ["critical", "high", "medium", "low", "info"]
     return ", ".join(f"{name}={counts.get(name, 0)}" for name in ordered)
+
+
+def _suppression_count_line(count: int, truncated: bool) -> str:
+    suffix = (
+        f" (details capped at {MAX_SUPPRESSION_AUDIT_ITEMS})"
+        if truncated
+        else ""
+    )
+    return f"suppressed: {count} finding(s){suffix}"
 
 
 def _escape_table(value: str) -> str:

@@ -34,7 +34,7 @@ The Action can emit the same portable file before its final severity gate:
 
 ```yaml
 - id: hygiene
-  uses: Yuki9814/agent-hygiene@v0.6.0
+  uses: Yuki9814/agent-hygiene@v0.7.0
   with:
     min-score: "85"
     fail-on: high
@@ -57,8 +57,8 @@ exercise a same-scope finding and clean rerun:
 
 | File | Source revision | SHA-256 |
 | --- | --- | --- |
-| `findings.json` | `1111111111111111111111111111111111111111` | `7a5df87d5b98090f439eab270f7ad753f00cdf81169291324773a2a80e3772e7` |
-| `clean-rerun.json` | `2222222222222222222222222222222222222222` | `61868079349829babe7eaf9077feda12ea200bcc8c0fd485d7e921365e6080bb` |
+| `findings.json` | `1111111111111111111111111111111111111111` | `12ba4b3a6619d9e4f86eb55c01d5233bc0de5086529140efa34b69fc80f8521b` |
+| `clean-rerun.json` | `2222222222222222222222222222222222222222` | `3c4ce58136659a8fc8cf3c5d81734ee267d3ed15af5993c81525ea878ddeff82` |
 
 Regenerate them from source:
 

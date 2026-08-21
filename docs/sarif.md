@@ -41,5 +41,44 @@ URI; it does not include source text or an absolute checkout path. The hash is
 derived from source context, so review a SARIF report before sharing it outside
 the repository.
 
+## Suppression audit
+
+The run-level `properties.suppressionAudit` object makes suppressed findings
+discoverable without turning policy text or finding evidence into SARIF data:
+
+```json
+{
+  "count": 1,
+  "by_source": {
+    "baseline": 0,
+    "ignore-rule": 0,
+    "ignore-path": 1,
+    "inline-directive": 0
+  },
+  "truncated": false,
+  "items": [
+    {
+      "rule_id": "AH002",
+      "path": "AGENTS.md",
+      "line": 4,
+      "fingerprint": "0123456789abcdef0123",
+      "source": "ignore-path",
+      "reason": "matched configured ignore path"
+    }
+  ]
+}
+```
+
+`source` is one of `baseline`, `ignore-rule`, `ignore-path`, or
+`inline-directive`. If more than one suppression would match, the scanner
+records the first legacy decision in that order: configured rule, configured
+path, baseline, then inline directive. Detail is capped at 10,000 items;
+`count` and `by_source` remain exact and `truncated` signals omitted detail.
+The ledger contains no raw directive, ignore pattern, message, or evidence.
+Native JSON exposes the same object as `summary.suppression_audit`, and text
+and Markdown reports render its count and available items. This is an additive
+run property and does not change SARIF 2.1.0, existing result fields, native
+JSON schema version 1, or baseline/finding fingerprint algorithms.
+
 GitHub documents that code scanning uses
 [`primaryLocationLineHash` for duplicate-alert prevention](https://docs.github.com/en/enterprise-cloud@latest/code-security/reference/code-scanning/sarif-files/sarif-support#data-for-preventing-duplicated-alerts).

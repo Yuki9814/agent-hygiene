@@ -57,6 +57,19 @@ repository, external review, or adoption result.
 - [ ] Record sanitized real-world examples for the new surfaces through the
   existing public-canary evidence process.
 
+## v0.7 — auditable suppression decisions
+
+- [x] Record baseline, configured rule/path, and inline-directive suppression
+  decisions with stable rule IDs, normalized locations, fingerprints, sources,
+  and static reasons.
+- [x] Show suppression totals and bounded redaction-safe detail in text,
+  Markdown, native JSON, and SARIF without changing schema version 1.
+- [x] Keep the ledger bounded to 10,000 detail items while preserving exact
+  counts, source totals, single-walk discovery, and zero runtime dependencies.
+- [x] Add positive, negative, output-contract, privacy, and detail-bound tests.
+- [ ] Validate suppression audit imports and review workflows with an external
+  maintainer through the existing public-canary evidence process.
+
 ## v1.0 release gate
 
 - [ ] Complete a 30-day canary across consenting public repositories.

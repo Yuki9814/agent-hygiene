@@ -23,6 +23,11 @@ SEVERITY_PENALTY = {
     "critical": 30,
 }
 
+# Keep the audit trail useful without allowing a repository full of suppressed
+# findings to turn a scan report into an unbounded memory allocation.  The
+# summary count remains exact; only per-item detail is capped.
+MAX_SUPPRESSION_AUDIT_ITEMS = 10_000
+
 
 @dataclass(frozen=True)
 class Document:
@@ -98,6 +103,49 @@ class Finding:
 
 
 @dataclass(frozen=True)
+class SuppressionRecord:
+    """A redaction-safe explanation for one suppressed finding."""
+
+    rule_id: str
+    path: str
+    line: int
+    fingerprint: str
+    source: str
+    reason: str
+
+    def to_dict(self) -> Dict[str, object]:
+        # Deliberately keep this contract to identifying metadata only.  In
+        # particular, never copy a finding's evidence or a raw config/directive
+        # into an audit report.
+        return {
+            "rule_id": self.rule_id,
+            "path": self.path,
+            "line": self.line,
+            "fingerprint": self.fingerprint,
+            "source": self.source,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
+class SuppressionAudit:
+    """Bounded, deterministic accounting for all suppression decisions."""
+
+    count: int = 0
+    by_source: Dict[str, int] = field(default_factory=dict)
+    items: List[SuppressionRecord] = field(default_factory=list)
+    truncated: bool = False
+
+    def to_dict(self) -> Dict[str, object]:
+        return {
+            "count": self.count,
+            "by_source": dict(self.by_source),
+            "truncated": self.truncated,
+            "items": [item.to_dict() for item in self.items],
+        }
+
+
+@dataclass(frozen=True)
 class ScanSummary:
     root: str
     scanned_files: int
@@ -111,6 +159,7 @@ class ScanSummary:
     counts: Dict[str, int] = field(default_factory=dict)
     complete: bool = True
     discovery_issues: List[DiscoveryIssue] = field(default_factory=list)
+    suppression_audit: SuppressionAudit = field(default_factory=SuppressionAudit)
 
     def to_dict(self, portable: bool = False) -> Dict[str, object]:
         data: Dict[str, object] = {
@@ -123,6 +172,7 @@ class ScanSummary:
             "counts": self.counts,
             "complete": self.complete,
             "discovery_issues": [issue.to_dict() for issue in self.discovery_issues],
+            "suppression_audit": self.suppression_audit.to_dict(),
         }
         if not portable:
             data["root"] = self.root

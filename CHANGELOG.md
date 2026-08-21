@@ -4,6 +4,10 @@ All notable changes are documented here. This project follows semantic versionin
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 0.7.0 - 2026-08-21
+
 - Add a stable `rules --format json` catalog so CI, editor integrations, and
   local handoff tools can discover rule IDs, severities, and remediation text
   without scraping human-facing documentation.
@@ -17,6 +21,12 @@ All notable changes are documented here. This project follows semantic versionin
 - Extend the synthetic corpus with positive and nearby safe hook fixtures while
   preserving existing output schemas, bounded reads, and the single-walk
   discovery contract.
+- Add a bounded suppression audit ledger covering baselines, configured rule
+  and path ignores, and inline directives without copying raw evidence or
+  policy text into reports.
+- Expose suppression counts and redaction-safe detail in text, Markdown,
+  native JSON, and SARIF while preserving schema version 1, rule IDs, finding
+  fingerprints, and the single-walk/zero-dependency runtime contract.
 
 ## 0.6.0 - 2026-07-30
 
