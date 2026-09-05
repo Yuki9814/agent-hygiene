@@ -6,6 +6,18 @@ All notable changes are documented here. This project follows semantic versionin
 
 - No unreleased changes.
 
+## 0.8.0 - 2026-09-05
+
+- Add `collect` to scan a manifest-selected local Git commit in an isolated,
+  bounded snapshot without network access, checkout filters, or project execution.
+- Produce an evidence-v1 observation bound by SHA-256 to a separate private
+  portable scanner result; preserve incomplete observations and existing output.
+- Keep baseline suppression disabled for canary collection while retaining
+  committed scanner configuration and the existing suppression audit.
+- Document collection/review, source and privacy boundaries, limits, exit status,
+  and rollback. Existing scan, Action, JSON, SARIF, and evidence contracts remain
+  compatible; no external-validation or adoption claims are added.
+
 ## 0.7.0 - 2026-08-21
 
 - Add a stable `rules --format json` catalog so CI, editor integrations, and

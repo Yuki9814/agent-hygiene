@@ -8,6 +8,7 @@ from pathlib import Path
 from . import __version__
 from .baseline import render_baseline
 from .config import ConfigError, default_config_text, load_config
+from .collector import CollectionError, collect_canary
 from .evidence import (
     EvidenceError,
     build_review_pack,
@@ -42,6 +43,8 @@ def main(argv=None) -> int:
         return run_review_pack(args)
     if args.command == "evidence":
         return run_evidence(args)
+    if args.command == "collect":
+        return run_collect(args)
 
     parser.print_help()
     return 2
@@ -129,7 +132,33 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evidence_parser.add_argument("--output", help="write the summary to a file")
 
+    collect_parser = subparsers.add_parser(
+        "collect", help="collect a pinned local Git revision for public-canary review",
+    )
+    collect_parser.add_argument("checkout", help="ordinary local Git clone (working tree is ignored)")
+    collect_parser.add_argument("--manifest", required=True, help="public-canary manifest with fixed revision and declared consent")
+    collect_parser.add_argument("--repository-id", required=True, help="repository id selected from the manifest")
+    collect_parser.add_argument("--output", required=True, help="new local bundle directory; must not exist")
     return parser
+
+
+def run_collect(args: argparse.Namespace) -> int:
+    try:
+        complete = collect_canary(
+            Path(args.checkout), Path(args.manifest), args.repository_id, Path(args.output),
+        )
+    except CollectionError as exc:
+        print(f"agent-hygiene: {exc}", file=sys.stderr)
+        return 2
+    except OSError:
+        print("agent-hygiene: collection filesystem operation failed", file=sys.stderr)
+        return 2
+    print("Collected local bundle: evidence/ is the review layer; private/ stays local.")
+    print("Consent and repository identity are declarations; independent validation is unchanged.")
+    if not complete:
+        print("agent-hygiene: observation is incomplete; see private/result.json", file=sys.stderr)
+        return 2
+    return 0
 
 
 def run_scan(args: argparse.Namespace) -> int:

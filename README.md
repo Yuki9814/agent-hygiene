@@ -59,6 +59,29 @@ run behaves.
 
 ## Quick start
 
+### Collect a pinned canary observation (v0.8 source checkout)
+
+`collect` turns a manifest-selected commit already available in a local Git
+clone into a reviewable observation and an exact scanner-result digest:
+
+```bash
+agent-hygiene collect ./consenting-repository \
+  --manifest ./public_canary_manifest.json \
+  --repository-id example-project --output ./new-local-bundle
+agent-hygiene evidence ./new-local-bundle/evidence --format markdown
+```
+
+The manifest must declare a full commit SHA and a public, revision-specific
+consent link. Collection uses committed Git objects in an isolated snapshot;
+uncommitted work, Git export filters, and the source clone's configuration do
+not enter the scan. It makes no network requests and runs no project code.
+Only the bundle's `evidence/` layer is intended for review; `private/result.json`
+stays local. Collection does not verify consent or create independent reviews.
+See [collection limits and workflow](docs/collection.md). Until a v0.8 wheel is
+published, install the source checkout above to use this command.
+
+### Scan a working directory
+
 ```bash
 agent-hygiene scan .
 agent-hygiene scan . --format json --output agent-hygiene.json

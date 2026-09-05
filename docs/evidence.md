@@ -12,6 +12,11 @@ than relying on a prose claim.
 
 ## Reproduce the status
 
+To generate an observation from a manifest-selected commit already present in
+a local clone, use the v0.8 [`collect` workflow](collection.md). It produces this
+same evidence-v1 layout, with raw scanner JSON in a separate private directory;
+it does not change the independent-validation gate or canonical study counts.
+
 ```bash
 PYTHONPATH=src python -m agent_hygiene evidence \
   evidence/v0.4.0 --format json
