@@ -13,7 +13,7 @@ import threading
 import unicodedata
 from urllib.parse import urlsplit
 
-from .config import ConfigError, load_config
+from .config import Config
 from .evidence import (
     EvidenceError,
     load_evidence_directory,
@@ -27,12 +27,37 @@ MAX_TREE_BYTES = 4 * 1024 * 1024
 MAX_SNAPSHOT_FILES = 10_000
 MAX_BLOB_BYTES = 16 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
+MAX_OBJECT_STORE_ENTRIES = 100_000
 GIT_TIMEOUT_SECONDS = 30
 _OBJECT_ID = re.compile(r"[0-9a-f]{40}")
 
 
 class CollectionError(ValueError):
     """The requested snapshot could not be collected safely."""
+
+
+def _validate_object_store(checkout):
+    objects = checkout / ".git" / "objects"
+    if objects.is_symlink() or not objects.is_dir():
+        raise CollectionError("Git objects must be a local directory, not a symlink")
+    count = 0
+
+    def fail_walk(error):
+        raise CollectionError("Git object store cannot be inspected") from error
+
+    for directory, directories, files in os.walk(objects, followlinks=False, onerror=fail_walk):
+        file_names = set(files)
+        for name in directories + files:
+            count += 1
+            if count > MAX_OBJECT_STORE_ENTRIES:
+                raise CollectionError("Git object store exceeds the entry inspection limit")
+            path = Path(directory) / name
+            if path.is_symlink():
+                raise CollectionError("symlinks inside the Git object store are unsupported")
+            if path.relative_to(objects).as_posix() in ("info/alternates", "info/http-alternates"):
+                raise CollectionError("alternate Git object stores are unsupported")
+            if name in file_names and not path.is_file():
+                raise CollectionError("Git object store contains a nonregular file")
 
 
 def _git_read(checkout, arguments, limit, input_bytes=b""):
@@ -175,11 +200,14 @@ def collect_canary(checkout: Path, manifest_path: Path, repository_id: str, outp
     network attestations. Only committed objects are scanned, never the working
     tree, and no reviewers or accuracy judgments are generated.
     """
-    checkout = Path(checkout).absolute()
+    checkout = Path(checkout).resolve()
     output = Path(output).absolute()
     if (not (checkout / ".git").is_dir() or (checkout / ".git").is_symlink()
             or not (checkout / ".git" / "objects").is_dir()):
         raise CollectionError("checkout must be an ordinary local Git clone")
+    resolved_output = output.resolve()
+    if resolved_output == checkout or checkout in resolved_output.parents:
+        raise CollectionError("output must be outside the source checkout")
     if output.exists() or output.is_symlink():
         raise CollectionError("output already exists; choose a new bundle directory")
     if not output.parent.is_dir():
@@ -194,13 +222,13 @@ def collect_canary(checkout: Path, manifest_path: Path, repository_id: str, outp
         raise CollectionError("repository id is absent from the public canary manifest")
     revision = repository["revision"].lower()
     selected_manifest = {**manifest, "repositories": [repository]}
+    _validate_object_store(checkout)
     with tempfile.TemporaryDirectory(prefix="agent-hygiene-snapshot-") as scratch:
         snapshot = Path(scratch)
         _materialize(checkout, revision, snapshot)
-        try:
-            result = scan(snapshot, load_config(snapshot), use_baseline=False)
-        except ConfigError as exc:
-            raise CollectionError("snapshot scanner configuration is invalid") from exc
+        # A canary cannot set its own policy or hide findings from reviewers.
+        # Ordinary `scan` retains its existing user-configured behavior.
+        result = scan(snapshot, Config(), use_baseline=False, apply_suppressions=False)
         identity = "remote:github.com/" + urlsplit(repository["repository_url"]).path.strip("/").lower()
         result = replace(result, summary=replace(
             result.summary, source_revision=revision,

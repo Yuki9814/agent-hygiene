@@ -27,10 +27,12 @@ agent-hygiene collect ./repository-clone \
 agent-hygiene evidence ./canary-bundle/evidence --format json
 ```
 
-`--output` must be a new path whose parent directory already exists. Existing
-files, directories, and symlinks are refused. All output is staged and its
-evidence layer is validated before the destination is created. A publication
-error removes the collector's newly created destination. Do not share that
+`--output` must be a new path whose parent directory already exists, and its
+resolved path must be outside the resolved source checkout and its `.git`
+directory. A symlinked parent cannot bypass this boundary. Existing files,
+directories, and symlinks are refused. All output is staged and its evidence
+layer is validated before the destination is created. A publication error
+removes the collector's newly created destination. Do not share that
 destination with another writer while collection runs.
 The validated `evidence/` directory is installed last in a single rename. A
 forced process termination can leave a partial bundle without that directory;
@@ -81,10 +83,18 @@ result or independently authenticate either digest.
   objects fail; no lazy fetch or network downloader is started.
 - Commit and blob object hashes are checked before scanning. These checks bind
   local bytes; they do not establish GitHub provenance or author authenticity.
-- Scanner configuration comes from the committed `.agent-hygiene.json`.
-  Configured exclusions, rule/path ignores, and inline directives still apply
-  and remain visible in the normal suppression audit. Baselines are disabled
-  so old recorded findings do not silently disappear from a canary observation.
+- Collection inspects the `.git/objects` root and its entries before reading
+  objects. The root and its internal entries must not be symlinks; alternate
+  stores named `info/alternates` or `info/http-alternates`, non-regular entries,
+  and an object-store listing over 100,000 entries are refused.
+- The local object store must remain unchanged for the duration of collection.
+  Concurrent fetch, garbage collection, repack, prune, or other object-database
+  mutation is unsupported; use a stable local clone and retry if it changes.
+- Collection uses a fixed default `Config()` and disables the baseline,
+  rule/path ignore rules, and inline suppression. A snapshot's
+  `.agent-hygiene.json` is repository content rather than collection policy;
+  it cannot hide canary findings, and the canary suppression audit is empty.
+  Ordinary `scan` keeps its existing configuration and suppression behavior.
 - The source revision and scope identity come from the validated manifest.
   Scan JSON/observation output is deterministic for the same source, manifest,
   scanner version, and supported filesystem behavior. There are no timestamps
@@ -101,8 +111,10 @@ The tree is limited to 10,000 regular files, 16 MiB per file, and 64 MiB total
 blob bytes; Git tree/commit responses are limited to 4 MiB. Each Git read has a
 30-second deadline. Symlinks, submodules, unsafe/nonportable paths, and case or
 Unicode normalization collisions are refused rather than silently skipped.
-Normal scanner discovery, exclusions, and 512 KiB instruction-file limits still
-apply. The observation also must satisfy the existing bounded evidence schema.
+The normal scanner discovery range, default excludes, and 512 KiB
+instruction-file limits still apply within the snapshot. Collection does not
+promise to inspect every arbitrary file in the Git tree. The observation also
+must satisfy the existing bounded evidence schema.
 
 - `0`: a complete observation was collected. Findings may still exist; this is
   collection success, not a policy pass or an accuracy result.
