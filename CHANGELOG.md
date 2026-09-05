@@ -6,6 +6,23 @@ All notable changes are documented here. This project follows semantic versionin
 
 - No unreleased changes.
 
+## 0.8.0 - 2026-09-05 (source checkout; not a published release)
+
+- Add `collect` to scan a manifest-selected local Git commit in an isolated,
+  bounded snapshot without network access, checkout filters, or project execution.
+- Produce an evidence-v1 observation bound by SHA-256 to a separate private
+  portable scanner result; preserve incomplete observations and existing output.
+- Use a fixed default `Config()` for canary collection and disable baselines,
+  rule/path ignore rules, and inline suppression. A snapshot's `.agent-hygiene.json`
+  cannot change collection policy; ordinary `scan` behavior remains unchanged.
+- Refuse unsupported object stores, including internal symlinks,
+  `info/alternates`, `info/http-alternates`, non-regular entries, and listings
+  over 100,000 entries. Require resolved output outside the source checkout and
+  `.git`, including symlinked parents, and require a stable local object store.
+- Document collection/review, source and privacy boundaries, limits, exit status,
+  and rollback. Existing scan, Action, JSON, SARIF, and evidence contracts remain
+  compatible; no formal release, external-validation, or adoption claim is made.
+
 ## 0.7.0 - 2026-08-21
 
 - Add a stable `rules --format json` catalog so CI, editor integrations, and

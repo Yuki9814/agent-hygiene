@@ -59,6 +59,42 @@ run behaves.
 
 ## Quick start
 
+### Collect a pinned canary observation (v0.8 source checkout)
+
+`collect` turns a manifest-selected commit already available in a local Git
+clone into a reviewable observation and an exact scanner-result digest:
+
+```bash
+agent-hygiene collect ./consenting-repository \
+  --manifest ./public_canary_manifest.json \
+  --repository-id example-project --output ./new-local-bundle
+agent-hygiene evidence ./new-local-bundle/evidence --format markdown
+```
+
+The manifest must declare a full commit SHA and a public, revision-specific
+consent link. Collection uses committed Git objects in an isolated snapshot;
+uncommitted work, Git export filters, and the source clone's configuration do
+not enter the scan. Collection uses a fixed default `Config()` and disables
+baselines, rule/path ignore rules, and inline suppression; a snapshot's
+`.agent-hygiene.json` cannot change that policy. Ordinary `scan` behavior is
+unchanged. It makes no network requests and runs no project code. Only the
+bundle's `evidence/` layer is intended for review; `private/result.json` stays
+local. Collection does not verify consent or create independent reviews.
+
+The collector rejects internal `.git/objects` symlinks, alternate-store files
+(`info/alternates` and `info/http-alternates`), non-regular object-store
+entries, and object stores with more than 100,000 entries. The resolved output
+path must be outside the source checkout and its `.git` directory, including
+when a parent is a symlink, and the local object store must remain unchanged
+while collection runs. Collection retains the normal scanner discovery range,
+default excludes, and bounded file limits; it does not promise to inspect every
+arbitrary file in the Git tree. See [collection limits and workflow](docs/collection.md).
+This v0.8 source-checkout command is not a formal published release or an
+independent-validation result. Until a v0.8 wheel is published, install the
+source checkout above to use it.
+
+### Scan a working directory
+
 ```bash
 agent-hygiene scan .
 agent-hygiene scan . --format json --output agent-hygiene.json
@@ -211,6 +247,8 @@ agent-hygiene rules [--format text|json]
 agent-hygiene evaluate MANIFEST [--format text|json]
 agent-hygiene review-pack MANIFEST --output blind-review.json
 agent-hygiene evidence DIRECTORY [--format json|markdown] [--output FILE]
+agent-hygiene collect CHECKOUT --manifest MANIFEST \
+  --repository-id ID --output NEW_BUNDLE
 ```
 
 `agent-hygiene rules --format json` emits the versioned rule catalog used by

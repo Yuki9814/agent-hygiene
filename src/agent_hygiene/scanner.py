@@ -33,7 +33,7 @@ SUPPRESSION_SOURCES = (
 )
 
 
-def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
+def scan(root: Path, config: Config, use_baseline: bool = True, apply_suppressions: bool = True) -> ScanResult:
     root = root.resolve()
     discovery = discover(root, config.exclude)
     discovery_issues = list(discovery.issues)
@@ -45,7 +45,7 @@ def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
         findings.extend(scan_document(doc, root))
     findings.extend(repository_rules(docs))
     baseline_fingerprints: Set[str] = set()
-    if use_baseline and config.baseline:
+    if apply_suppressions and use_baseline and config.baseline:
         try:
             baseline_fingerprints = load_baseline(root, config.baseline)
         except BaselineError as exc:
@@ -56,12 +56,15 @@ def scan(root: Path, config: Config, use_baseline: bool = True) -> ScanResult:
                     message=str(exc),
                 )
             )
-    findings, suppression_audit = _filter_findings(
-        findings,
-        docs_by_path,
-        config,
-        baseline_fingerprints,
-    )
+    if apply_suppressions:
+        findings, suppression_audit = _filter_findings(
+            findings,
+            docs_by_path,
+            config,
+            baseline_fingerprints,
+        )
+    else:
+        suppression_audit = SuppressionAudit()
     findings = _attach_location_fingerprints(findings, docs_by_path)
 
     findings.sort(key=lambda item: (-_severity_rank(item.severity), item.path, item.line, item.rule_id))

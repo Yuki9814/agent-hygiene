@@ -70,6 +70,21 @@ repository, external review, or adoption result.
 - [ ] Validate suppression audit imports and review workflows with an external
   maintainer through the existing public-canary evidence process.
 
+## v0.8 — reproducible local canary observations
+
+- [x] Collect a fixed manifest-selected Git commit without checking out files,
+  running project code, reading source Git configuration, or fetching a network.
+- [x] Bind a portable private scan result to a minimal evidence-v1 observation
+  with a stable SHA-256 digest and location IDs.
+- [x] Validate the staged public layer before creating a new local output bundle;
+  refuse existing destinations and retain incomplete observation status.
+- [x] Cover pinned-revision, dirty-worktree, privacy, no-fetch, input-limit, and
+  failure behavior with offline Git integration tests.
+- [ ] Obtain actual revision-specific public consent and independent reviews.
+
+Collection automates record preparation. It does not satisfy the external
+validation or 30-day canary gates below.
+
 ## v1.0 release gate
 
 - [ ] Complete a 30-day canary across consenting public repositories.

@@ -61,6 +61,11 @@ class EvidenceError(ValueError):
     """Raised when evidence cannot be safely loaded or independently verified."""
 
 
+def load_public_canary_manifest(path: Path) -> Dict[str, object]:
+    """Read a bounded manifest using the same contract as evidence validation."""
+    return _load_public_canary_manifest(Path(path))
+
+
 def build_review_pack(manifest_path: Path) -> Dict[str, object]:
     """Build a deterministic blind review pack from an evaluation manifest.
 

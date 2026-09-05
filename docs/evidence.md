@@ -12,6 +12,26 @@ than relying on a prose claim.
 
 ## Reproduce the status
 
+To generate an observation from a manifest-selected commit already present in
+a local clone, use the v0.8 [`collect` workflow](collection.md). It produces this
+same evidence-v1 layout, with raw scanner JSON in a separate private directory;
+it does not change the independent-validation gate or canonical study counts.
+The source checkout's `.agent-hygiene.json` is not collection policy: `collect`
+uses a fixed default `Config()` and disables baselines, rule/path ignore rules,
+and inline suppression, so its suppression audit is empty. Ordinary `scan`
+configuration and suppression behavior remain unchanged.
+
+Collection only supports a stable local Git object database. It rejects an
+object-store root or internal symlink, `info/alternates`,
+`info/http-alternates`, non-regular object-store entries, and listings over
+100,000 entries; concurrent fetch, garbage collection, repack, prune, or other
+object-database mutation is unsupported. The resolved output path must be
+outside the source checkout and its `.git` directory, including symlinked
+parents. The normal scanner discovery range, default excludes, and bounded file
+limits still apply, so this workflow does not promise to inspect every
+arbitrary file in a Git tree. These source-checkout changes are not a formal
+published release and do not create external-validation evidence.
+
 ```bash
 PYTHONPATH=src python -m agent_hygiene evidence \
   evidence/v0.4.0 --format json
