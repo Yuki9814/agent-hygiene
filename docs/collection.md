@@ -85,7 +85,7 @@ result or independently authenticate either digest.
   local bytes; they do not establish GitHub provenance or author authenticity.
 - Collection inspects the `.git/objects` root and its entries before reading
   objects. The root and its internal entries must not be symlinks; alternate
-  stores named `info/alternates` or `info/http-alternates`, non-regular entries,
+  stores named `info/alternates` or `info/http-alternates` (case-insensitive), non-regular entries,
   and an object-store listing over 100,000 entries are refused.
 - The local object store must remain unchanged for the duration of collection.
   Concurrent fetch, garbage collection, repack, prune, or other object-database

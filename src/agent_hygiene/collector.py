@@ -54,7 +54,7 @@ def _validate_object_store(checkout):
             path = Path(directory) / name
             if path.is_symlink():
                 raise CollectionError("symlinks inside the Git object store are unsupported")
-            if path.relative_to(objects).as_posix() in ("info/alternates", "info/http-alternates"):
+            if path.relative_to(objects).as_posix().casefold() in ("info/alternates", "info/http-alternates"):
                 raise CollectionError("alternate Git object stores are unsupported")
             if name in file_names and not path.is_file():
                 raise CollectionError("Git object store contains a nonregular file")
@@ -200,18 +200,23 @@ def collect_canary(checkout: Path, manifest_path: Path, repository_id: str, outp
     network attestations. Only committed objects are scanned, never the working
     tree, and no reviewers or accuracy judgments are generated.
     """
-    checkout = Path(checkout).resolve()
-    output = Path(output).absolute()
+    try:
+        checkout = Path(checkout).resolve()
+        output = Path(output).absolute()
+        resolved_output = output.resolve()
+    except (OSError, RuntimeError) as exc:
+        raise CollectionError("checkout and output paths must resolve without symlink loops") from exc
     if (not (checkout / ".git").is_dir() or (checkout / ".git").is_symlink()
             or not (checkout / ".git" / "objects").is_dir()):
         raise CollectionError("checkout must be an ordinary local Git clone")
-    resolved_output = output.resolve()
-    if resolved_output == checkout or checkout in resolved_output.parents:
-        raise CollectionError("output must be outside the source checkout")
     if output.exists() or output.is_symlink():
         raise CollectionError("output already exists; choose a new bundle directory")
     if not output.parent.is_dir():
         raise CollectionError("output parent must already exist")
+    # Filesystem identity also catches case aliases on macOS, where resolve()
+    # can retain different spellings of the same existing directory.
+    if any(parent.samefile(checkout) for parent in resolved_output.parents):
+        raise CollectionError("output must be outside the source checkout")
     try:
         manifest = load_public_canary_manifest(Path(manifest_path))
     except EvidenceError as exc:

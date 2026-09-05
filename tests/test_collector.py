@@ -262,9 +262,10 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue(any(item["rule_id"] == "AH002" for item in result["findings"]))
 
     def test_alternate_object_stores_are_rejected(self):
-        for filename in ("alternates", "http-alternates"):
+        for filename in ("info/alternates", "info/http-alternates", "info/ALTERNATES", "info/HTTP-ALTERNATES", "INFO/alternates"):
             with self.subTest(filename=filename):
-                alternate = self.repo / ".git/objects/info" / filename
+                alternate = self.repo / ".git/objects" / filename
+                alternate.parent.mkdir(exist_ok=True)
                 alternate.write_text(str(self.root / "outside-objects") + "\n", encoding="utf-8")
                 with self.assertRaisesRegex(CollectionError, "alternate Git object"):
                     self.collect()
@@ -293,6 +294,9 @@ class CollectorTests(unittest.TestCase):
 
     def test_output_cannot_modify_checkout_or_metadata_through_aliases(self):
         outputs = [self.repo / "bundle", self.repo / ".git/bundle"]
+        case_alias = self.repo.with_name(self.repo.name.upper())
+        if case_alias.exists() and case_alias.samefile(self.repo):
+            outputs.append(case_alias / "bundle")
         alias = self.root / "repo-alias"
         try:
             alias.symlink_to(self.repo, target_is_directory=True)
@@ -306,6 +310,22 @@ class CollectorTests(unittest.TestCase):
                 collect_canary(self.repo, self.manifest, "fixture", output)
             self.assertFalse(output.exists())
         self.assertEqual(self.git("status", "--porcelain"), original_status)
+
+    def test_symlink_loops_return_cli_error_without_traceback(self):
+        loop = self.root / "loop"
+        try:
+            loop.symlink_to("loop")
+        except OSError:
+            self.skipTest("symlinks unavailable")
+        for checkout, output in ((self.repo, loop), (self.repo, loop / "bundle"), (loop, self.root / "bundle")):
+            errors = io.StringIO()
+            with self.subTest(checkout=checkout, output=output), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                code = main(["collect", str(checkout), "--manifest", str(self.manifest),
+                             "--repository-id", "fixture", "--output", str(output)])
+            self.assertEqual(code, 2)
+            self.assertNotIn("Traceback", errors.getvalue())
+        self.assertTrue(loop.is_symlink())
+        self.assertFalse((self.root / "bundle").exists())
 
 
 if __name__ == "__main__":
